@@ -1,0 +1,18 @@
+# System files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Gemini/Antigravity
+.gemini/
+.agents/
+GEMINI.md
+
+# Other folders
+Cut the file/

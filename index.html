@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <meta name="description" content="Весёлый математический тренажёр для первоклассников — сложение, вычитание и умножение с играми и наградами">
+    <title>🌟 Математика — Весёлый Тренажёр</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <!-- Confetti canvas -->
+    <canvas id="confetti-canvas"></canvas>
+
+    <!-- Floating decorations -->
+    <div class="floating-decorations" id="floating-decorations"></div>
+
+    <!-- ===== MAIN MENU SCREEN ===== -->
+    <div id="screen-menu" class="screen active">
+        <header class="app-header">
+            <div class="header-stars">✨</div>
+            <h1 class="app-title">Математика</h1>
+            <p class="app-subtitle">Весёлый тренажёр</p>
+        </header>
+
+        <div class="menu-container">
+            <div class="mode-card mode-addition" onclick="showSubMenu('addition')" id="btn-addition">
+                <div class="mode-icon">➕</div>
+                <div class="mode-label">Сложение</div>
+                <div class="mode-desc">Складываем числа</div>
+            </div>
+            <div class="mode-card mode-subtraction" onclick="showSubMenu('subtraction')" id="btn-subtraction">
+                <div class="mode-icon">➖</div>
+                <div class="mode-label">Вычитание</div>
+                <div class="mode-desc">Вычитаем числа</div>
+            </div>
+            <div class="mode-card mode-multiplication" onclick="showSubMenu('multiplication')" id="btn-multiplication">
+                <div class="mode-icon">✖️</div>
+                <div class="mode-label">Умножение</div>
+                <div class="mode-desc">Таблица умножения</div>
+            </div>
+        </div>
+
+        <!-- History button -->
+        <div class="history-btn-container">
+            <button class="history-btn" onclick="showCalendar()" id="btn-history">
+                📅 Мои результаты
+            </button>
+        </div>
+
+        <!-- Input mode toggle -->
+        <div class="input-mode-toggle">
+            <span class="toggle-label">Способ ответа:</span>
+            <div class="toggle-buttons">
+                <button class="toggle-btn active" id="toggle-choices" onclick="setInputMode('choices')">
+                    🔘 Варианты
+                </button>
+                <button class="toggle-btn" id="toggle-numpad" onclick="setInputMode('numpad')">
+                    🔢 Клавиатура
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== SUB-MENU SCREEN (difficulty) ===== -->
+    <div id="screen-submenu" class="screen">
+        <button class="back-btn" onclick="goToMenu()" id="btn-back-submenu">
+            ← Назад
+        </button>
+        <div class="submenu-header">
+            <div class="submenu-icon" id="submenu-icon">➕</div>
+            <h2 class="submenu-title" id="submenu-title">Сложение</h2>
+        </div>
+        <div class="submenu-container" id="submenu-container">
+            <!-- Dynamically filled -->
+        </div>
+    </div>
+
+    <!-- ===== GAME SCREEN ===== -->
+    <div id="screen-game" class="screen">
+        <div class="game-header">
+            <button class="back-btn" onclick="goToMenu()" id="btn-back-game">
+                ← Меню
+            </button>
+            <div class="score-display" id="score-display">
+                <span class="score-star">⭐</span>
+                <span class="score-value" id="score-value">0</span>
+            </div>
+            <div class="progress-display" id="progress-display">
+                <span id="progress-current">1</span>/<span id="progress-total">20</span>
+            </div>
+        </div>
+
+        <!-- Progress bar -->
+        <div class="progress-bar-container">
+            <div class="progress-bar" id="progress-bar"></div>
+        </div>
+
+        <!-- Problem display -->
+        <div class="problem-container" id="problem-container">
+            <div class="problem-text" id="problem-text">
+                <span class="problem-num" id="num-a">3</span>
+                <span class="problem-op" id="op">+</span>
+                <span class="problem-num" id="num-b">5</span>
+                <span class="problem-eq">=</span>
+                <span class="problem-answer" id="answer-display">?</span>
+            </div>
+        </div>
+
+        <!-- Feedback emoji -->
+        <div class="feedback" id="feedback"></div>
+
+        <!-- Multiple choice answers -->
+        <div class="choices-container" id="choices-container">
+            <button class="choice-btn" onclick="checkAnswer(this)" id="choice-0">5</button>
+            <button class="choice-btn" onclick="checkAnswer(this)" id="choice-1">8</button>
+            <button class="choice-btn" onclick="checkAnswer(this)" id="choice-2">7</button>
+            <button class="choice-btn" onclick="checkAnswer(this)" id="choice-3">6</button>
+        </div>
+
+        <!-- Numpad input -->
+        <div class="numpad-container" id="numpad-container" style="display:none;">
+            <div class="numpad-display" id="numpad-display">?</div>
+            <div class="numpad-grid">
+                <button class="numpad-btn" onclick="numpadInput(1)">1</button>
+                <button class="numpad-btn" onclick="numpadInput(2)">2</button>
+                <button class="numpad-btn" onclick="numpadInput(3)">3</button>
+                <button class="numpad-btn" onclick="numpadInput(4)">4</button>
+                <button class="numpad-btn" onclick="numpadInput(5)">5</button>
+                <button class="numpad-btn" onclick="numpadInput(6)">6</button>
+                <button class="numpad-btn" onclick="numpadInput(7)">7</button>
+                <button class="numpad-btn" onclick="numpadInput(8)">8</button>
+                <button class="numpad-btn" onclick="numpadInput(9)">9</button>
+                <button class="numpad-btn numpad-clear" onclick="numpadClear()">⌫</button>
+                <button class="numpad-btn" onclick="numpadInput(0)">0</button>
+                <button class="numpad-btn numpad-submit" onclick="numpadSubmit()">✓</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== COMPLETION SCREEN ===== -->
+    <div id="screen-complete" class="screen">
+        <div class="complete-container">
+            <div class="complete-emoji" id="complete-emoji">🎉</div>
+            <h2 class="complete-title">Молодец!</h2>
+            <p class="complete-subtitle" id="complete-subtitle">Ты справилась!</p>
+            <div class="complete-stats">
+                <div class="stat-item">
+                    <div class="stat-icon">⭐</div>
+                    <div class="stat-value" id="stat-correct">0</div>
+                    <div class="stat-label">Правильно</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-icon">📝</div>
+                    <div class="stat-value" id="stat-total">20</div>
+                    <div class="stat-label">Всего</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-icon">🏆</div>
+                    <div class="stat-value" id="stat-percent">0%</div>
+                    <div class="stat-label">Результат</div>
+                </div>
+            </div>
+            <div class="complete-stars" id="complete-stars"></div>
+            <button class="menu-btn" onclick="goToMenu()" id="btn-back-complete">
+                🏠 В главное меню
+            </button>
+            <button class="menu-btn play-again-btn" onclick="playAgain()" id="btn-play-again">
+                🔄 Ещё раз!
+            </button>
+        </div>
+    </div>
+
+    <!-- ===== CALENDAR / HISTORY SCREEN ===== -->
+    <div id="screen-calendar" class="screen">
+        <button class="back-btn" onclick="goToMenu()" id="btn-back-calendar">
+            ← Назад
+        </button>
+        <div class="calendar-header">
+            <h2 class="calendar-title">📅 Мои результаты</h2>
+        </div>
+        <div class="calendar-nav">
+            <button class="cal-nav-btn" onclick="calendarPrevMonth()" id="btn-cal-prev">‹</button>
+            <span class="cal-month-label" id="cal-month-label">Март 2026</span>
+            <button class="cal-nav-btn" onclick="calendarNextMonth()" id="btn-cal-next">›</button>
+        </div>
+        <div class="calendar-grid" id="calendar-grid">
+            <!-- Dynamically filled -->
+        </div>
+        <div class="day-details" id="day-details" style="display:none;">
+            <h3 class="day-details-title" id="day-details-title">28 марта</h3>
+            <div class="day-details-list" id="day-details-list">
+                <!-- Dynamically filled -->
+            </div>
+        </div>
+        <div class="calendar-empty" id="calendar-empty" style="display:none;">
+            <div class="empty-emoji">📚</div>
+            <p>Пока нет результатов.</p>
+            <p>Начни решать примеры!</p>
+        </div>
+    </div>
+
+    <script src="main.js"></script>
+</body>
+</html>
