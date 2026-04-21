@@ -1231,3 +1231,616 @@ body {
         padding: 12px 14px;
     }
 }
+
+/* ===== ECONOMY & UI ADDITIONS ===== */
+
+.economy-panel {
+    display: flex;
+    justify-content: center;
+    gap: 16px;
+    margin-top: 10px;
+    margin-bottom: 8px;
+}
+
+.economy-item {
+    background: var(--white);
+    padding: 8px 16px;
+    border-radius: var(--radius-sm);
+    box-shadow: var(--shadow-sm);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 1.2rem;
+    font-weight: 800;
+}
+
+.economy-item.large {
+    font-size: 1.5rem;
+    padding: 12px 24px;
+    border-radius: var(--radius);
+    background: linear-gradient(135deg, var(--yellow), var(--yellow-dark));
+    box-shadow: var(--shadow-md);
+}
+
+.economy-icon {
+    font-size: 1.4rem;
+}
+
+.game-stats {
+    display: flex;
+    gap: 12px;
+}
+
+.game-economy {
+    background: var(--white);
+    padding: 8px 12px;
+    border-radius: var(--radius-sm);
+    box-shadow: var(--shadow-sm);
+    font-size: 1.1rem;
+    font-weight: 800;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+.game-economy.combo {
+    background: linear-gradient(135deg, #FFE066, #FFB87A);
+    color: #fff;
+    text-shadow: 1px 1px 2px rgba(0,0,0,0.1);
+}
+
+/* ===== LOGIN SCREEN ===== */
+.login-container {
+    width: 100%;
+    max-width: 320px;
+    background: var(--white);
+    padding: 30px 24px;
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-lg);
+    text-align: center;
+    margin-top: 20px;
+}
+
+.login-prompt {
+    font-size: 1.4rem;
+    margin-bottom: 20px;
+    color: var(--text);
+    font-weight: 800;
+}
+
+.login-input {
+    width: 100%;
+    font-size: 2.5rem;
+    text-align: center;
+    letter-spacing: 8px;
+    padding: 10px;
+    border: 3px solid var(--pink-light);
+    border-radius: var(--radius);
+    margin-bottom: 16px;
+    font-family: inherit;
+    color: var(--text);
+    outline: none;
+    transition: border-color 0.3s;
+}
+
+.login-input:focus {
+    border-color: var(--pink);
+}
+
+.login-btn {
+    width: 100%;
+    padding: 16px;
+    font-size: 1.3rem;
+    font-weight: 800;
+    color: var(--white);
+    background: linear-gradient(135deg, var(--pink), var(--lavender-dark));
+    border: none;
+    border-radius: var(--radius);
+    cursor: pointer;
+    box-shadow: var(--shadow-md);
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.login-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-lg);
+}
+
+.login-error {
+    color: var(--wrong);
+    font-weight: 700;
+    margin-top: 10px;
+    animation: shake 0.4s ease-in-out;
+}
+
+.login-desc {
+    font-size: 0.9rem;
+    color: var(--text-light);
+    margin-top: 16px;
+}
+
+/* ===== SHOP SCREEN ===== */
+.shop-btn {
+    background: linear-gradient(135deg, var(--mint), var(--sky));
+    margin-top: 8px;
+}
+
+.logout-btn-container {
+    margin-top: 16px;
+    width: 100%;
+    max-width: 420px;
+}
+
+.logout-btn {
+    width: 100%;
+    padding: 12px;
+    border: 2px dashed var(--pink-dark);
+    border-radius: var(--radius);
+    font-family: 'Nunito', sans-serif;
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--pink-dark);
+    background: transparent;
+    cursor: pointer;
+    transition: all 0.3s;
+}
+.logout-btn:hover {
+    background: var(--pink-light);
+}
+
+.shop-header {
+    text-align: center;
+    margin: 20px 0;
+}
+
+.shop-title {
+    font-size: 2.2rem;
+    font-weight: 900;
+    margin-bottom: 20px;
+    color: var(--text);
+}
+
+.shop-container {
+    width: 100%;
+    max-width: 420px;
+}
+
+.shop-card {
+    background: var(--white);
+    padding: 30px;
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-md);
+    text-align: center;
+    border: 3px solid var(--mint);
+}
+
+.shop-icon {
+    font-size: 4rem;
+    margin-bottom: 10px;
+    animation: bounce 2s infinite;
+}
+
+.shop-item-title {
+    font-size: 1.5rem;
+    font-weight: 800;
+    color: var(--text);
+    margin-bottom: 8px;
+}
+
+.shop-item-desc {
+    color: var(--text-light);
+    margin-bottom: 24px;
+    font-weight: 700;
+}
+
+.buy-btn {
+    width: 100%;
+    padding: 18px;
+    font-size: 1.3rem;
+    font-weight: 800;
+    color: var(--white);
+    background: linear-gradient(135deg, var(--mint-dark), var(--sky-dark));
+    border: none;
+    border-radius: var(--radius);
+    cursor: pointer;
+    box-shadow: var(--shadow-glow-mint);
+    transition: transform 0.2s, background 0.2s;
+}
+
+.buy-btn:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 6px 25px rgba(125, 212, 176, 0.6);
+}
+
+.buy-btn.disabled {
+    background: #ccc;
+    box-shadow: none;
+    cursor: not-allowed;
+    transform: none;
+}
+
+.buy-success-msg {
+    margin-top: 20px;
+    padding: 14px;
+    background: var(--correct-bg);
+    color: var(--mint-dark);
+    font-weight: 800;
+    font-size: 1.1rem;
+    border-radius: var(--radius-sm);
+    animation: fadeIn 0.5s ease;
+}
+
+.buy-error-msg {
+    margin-top: 12px;
+    color: var(--wrong);
+    font-weight: 800;
+    font-size: 1.1rem;
+    animation: popIn 0.3s ease;
+}
+
+/* ===== GLOBAL ECONOMY HEADER ===== */
+.global-stats-header {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    display: flex;
+    gap: 12px;
+    z-index: 1000;
+}
+
+.global-stat {
+    background: var(--white);
+    padding: 8px 16px;
+    border-radius: 30px;
+    box-shadow: var(--shadow);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 1.2rem;
+    font-weight: 800;
+    color: var(--text);
+    border: 2px solid var(--white);
+}
+
+.global-stat.robux-stat {
+    border-color: #ffd700;
+    box-shadow: 0 4px 15px rgba(255, 215, 0, 0.4);
+}
+
+.robux-icon-small {
+    height: 22px;
+    width: auto;
+    border-radius: 4px;
+}
+
+.robux-icon-large {
+    height: 80px;
+    width: auto;
+    filter: drop-shadow(0 10px 10px rgba(255, 215, 0, 0.3));
+    animation: bounce 2s infinite;
+}
+
+/* ===== DAILIES & ACHIEVEMENTS ===== */
+.daily-panel {
+    background: var(--white);
+    padding: 20px;
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow);
+    margin: 0 auto 24px;
+    width: 100%;
+    max-width: 420px;
+    text-align: center;
+    border: 3px solid var(--lavender);
+}
+
+.daily-title {
+    font-size: 1.2rem;
+    font-weight: 800;
+    color: var(--text);
+    margin-bottom: 15px;
+}
+
+.daily-progress-container {
+    width: 100%;
+    height: 20px;
+    background: #e1e8ed;
+    border-radius: 10px;
+    overflow: hidden;
+    margin-bottom: 10px;
+}
+
+.daily-progress-fill {
+    height: 100%;
+    width: 0%;
+    background: var(--mint);
+    transition: width 0.5s ease;
+}
+
+.daily-text {
+    font-size: 1rem;
+    color: var(--text-light);
+    font-weight: 700;
+    margin-bottom: 5px;
+}
+
+.daily-streak {
+    font-size: 1.1rem;
+    color: #ff6b81;
+    font-weight: 800;
+}
+
+.achievements-container {
+    width: 100%;
+    max-width: 420px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    overflow-y: auto;
+    padding-bottom: 30px;
+}
+
+.achievement-card {
+    background: var(--white);
+    padding: 16px;
+    border-radius: var(--radius);
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    box-shadow: var(--shadow);
+    transition: transform 0.2s;
+}
+
+.achievement-card.locked {
+    opacity: 0.5;
+    filter: grayscale(1);
+}
+
+.achievement-card.unlocked {
+    border-left: 5px solid var(--gold);
+}
+
+.ach-emoji {
+    font-size: 2.5rem;
+}
+
+.ach-title {
+    font-weight: 800;
+    font-size: 1.2rem;
+    color: var(--text);
+}
+
+.ach-desc {
+    color: var(--text-light);
+    font-weight: 600;
+}
+
+/* ===== NOTIFICATIONS ===== */
+.notification-container {
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    z-index: 9999;
+    pointer-events: none;
+}
+
+.notification-toast {
+    background: var(--white);
+    padding: 16px 20px;
+    border-radius: var(--radius);
+    box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    animation: slideUpFade 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+    pointer-events: auto;
+    border-left: 5px solid var(--gold);
+    max-width: 350px;
+    min-width: 280px;
+}
+
+.notification-toast.closing {
+    animation: fadeOutDown 0.3s forwards;
+}
+
+.toast-emoji {
+    font-size: 2rem;
+}
+
+.toast-content {
+    display: flex;
+    flex-direction: column;
+}
+
+.toast-title {
+    font-weight: 800;
+    color: var(--text);
+    font-size: 1.1rem;
+}
+
+.toast-desc {
+    color: var(--text-light);
+    font-size: 0.9rem;
+    font-weight: 600;
+}
+
+@keyframes slideUpFade {
+    from { opacity: 0; transform: translateY(50px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes fadeOutDown {
+    from { opacity: 1; transform: translateY(0); }
+    to { opacity: 0; transform: translateY(50px); }
+}
+
+/* ===== CROSSING TENS MODE ===== */
+.crossing-container {
+    width: 100%;
+    max-width: 500px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 14px;
+}
+
+.crossing-equation-container {
+    background: var(--white);
+    border-radius: var(--radius-lg);
+    padding: 24px 20px;
+    width: 100%;
+    box-shadow: var(--shadow-lg);
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+}
+
+.crossing-equation-container::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 5px;
+    background: linear-gradient(90deg, var(--pink), var(--lavender-dark), var(--mint), var(--sky));
+}
+
+.crossing-equation {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    font-size: 2.2rem;
+    font-weight: 900;
+    color: var(--text);
+    line-height: 1.4;
+}
+
+.crossing-num {
+    color: var(--text);
+}
+
+.crossing-op {
+    color: var(--pink-dark);
+}
+
+.crossing-eq {
+    color: var(--text-light);
+}
+
+.crossing-num-active {
+    color: var(--sky-dark);
+    background: rgba(132, 201, 245, 0.2);
+    border-radius: 8px;
+    padding: 2px 14px;
+    border: 3px dashed var(--sky-dark);
+    min-width: 50px;
+    display: inline-block;
+    text-align: center;
+    animation: stepPulse 2s ease-in-out infinite;
+}
+
+.crossing-num-locked {
+    color: var(--text-light);
+    background: rgba(136, 136, 168, 0.1);
+    border-radius: 8px;
+    padding: 2px 14px;
+    border: 3px dashed var(--text-light);
+    min-width: 50px;
+    display: inline-block;
+    text-align: center;
+    opacity: 0.5;
+}
+
+.crossing-num-filled {
+    color: var(--correct);
+    background: var(--correct-bg);
+    border-radius: 8px;
+    padding: 2px 14px;
+    border: 3px solid var(--correct);
+    min-width: 50px;
+    display: inline-block;
+    text-align: center;
+}
+
+.crossing-result {
+    color: var(--lavender-dark);
+    background: var(--lavender);
+    border-radius: var(--radius-sm);
+    padding: 2px 14px;
+    display: inline-block;
+    min-width: 50px;
+    text-align: center;
+    border: 3px solid transparent;
+}
+
+.crossing-result.filled {
+    color: var(--correct);
+    background: var(--correct-bg);
+    border-color: var(--correct);
+}
+
+@keyframes stepPulse {
+    0%, 100% { box-shadow: 0 0 10px rgba(132, 201, 245, 0.2); }
+    50% { box-shadow: 0 0 20px rgba(132, 201, 245, 0.5); }
+}
+
+.crossing-input-area {
+    width: 100%;
+    max-width: 340px;
+}
+
+.crossing-input-display {
+    text-align: center;
+    font-size: 2.2rem;
+    font-weight: 900;
+    color: var(--text);
+    background: var(--white);
+    padding: 12px;
+    border-radius: var(--radius);
+    margin-bottom: 10px;
+    box-shadow: var(--shadow-sm);
+    border: 3px solid var(--sky);
+    min-height: 56px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: border-color 0.3s;
+}
+
+.crossing-input-display.correct-flash {
+    border-color: var(--correct);
+    background: var(--correct-bg);
+    color: var(--correct);
+}
+
+.crossing-input-display.wrong-flash {
+    border-color: var(--wrong);
+    background: var(--wrong-bg);
+    color: var(--wrong);
+}
+
+.crossing-numpad-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+}
+
+.crossing-numpad-grid .numpad-btn {
+    padding: 14px;
+    font-size: 1.4rem;
+}
+
+.diff-reward {
+    margin-top: 8px;
+    font-size: 1.1rem;
+    font-weight: 900;
+    color: var(--gold);
+    background: var(--gold-light);
+    padding: 4px 12px;
+    border-radius: 12px;
+    display: inline-block;
+}

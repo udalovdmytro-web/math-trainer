@@ -3,12 +3,17 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <meta name="description" content="Весёлый математический тренажёр для первоклассников — сложение, вычитание и умножение с играми и наградами">
-    <title>🌟 Математика — Весёлый Тренажёр</title>
+    <meta name="description" content="Веселий математичний тренажер для першокласників — додавання, віднімання та множення з іграми та нагородами">
+    <title>🌟 Математика — Веселий Тренажер</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
+    
+    <!-- Firebase App (core) -->
+    <script src="https://www.gstatic.com/firebasejs/10.9.0/firebase-app-compat.js"></script>
+    <!-- Firebase Firestore -->
+    <script src="https://www.gstatic.com/firebasejs/10.9.0/firebase-firestore-compat.js"></script>
 </head>
 <body>
     <!-- Confetti canvas -->
@@ -17,48 +22,126 @@
     <!-- Floating decorations -->
     <div class="floating-decorations" id="floating-decorations"></div>
 
-    <!-- ===== MAIN MENU SCREEN ===== -->
-    <div id="screen-menu" class="screen active">
+    <!-- Notifications Container -->
+    <div id="notification-container" class="notification-container"></div>
+
+    <!-- Global Top-Right Stats -->
+    <div class="global-stats-header">
+        <div class="global-stat">
+            <span class="economy-icon">💰</span>
+            <span id="global-total-coins">0</span>
+        </div>
+        <div class="global-stat robux-stat">
+            <span class="economy-icon" style="font-size: 1.2rem; filter: none;">🎮</span>
+            <span id="global-roblox-time">0</span> хв
+        </div>
+    </div>
+
+    <!-- ===== LOGIN SCREEN ===== -->
+    <div id="screen-login" class="screen active">
         <header class="app-header">
             <div class="header-stars">✨</div>
             <h1 class="app-title">Математика</h1>
-            <p class="app-subtitle">Весёлый тренажёр</p>
+            <p class="app-subtitle">Для входу потрібен ПІН-код</p>
         </header>
+
+        <div class="login-container">
+            <h2 class="login-prompt">Секретний код:</h2>
+            <input type="password" id="login-pin" class="login-input" maxlength="4" placeholder="••••">
+            <button class="login-btn" onclick="handleLogin()" id="btn-login">Увійти</button>
+            <p class="login-error" id="login-error" style="display:none;">Введіть 4 цифри!</p>
+            <p class="login-desc">Прогрес і монети прив'яжуться до цього коду.</p>
+        </div>
+    </div>
+
+    <!-- ===== MAIN MENU SCREEN ===== -->
+    <div id="screen-menu" class="screen">
+        <header class="app-header">
+            <div class="header-stars">✨</div>
+            <h1 class="app-title">Математика</h1>
+            <p class="app-subtitle">Веселий тренажер</p>
+        </header>
+
+        <!-- Economy Stats Panel -->
+        <div class="economy-panel">
+            <div class="economy-item">
+                <span class="economy-icon">💰</span>
+                <span class="economy-value" id="menu-coins">0</span>
+            </div>
+            <div class="economy-item">
+                <span class="economy-icon">🔥</span>
+                <span class="economy-value" id="menu-combo">0</span>
+            </div>
+        </div>
+
+        <!-- Daily Progress -->
+        <div class="daily-panel card-panel">
+            <h3 class="daily-title">🎯 Завдання дня</h3>
+            <div class="daily-progress-container">
+                <div class="daily-progress-fill" id="daily-progress-fill"></div>
+            </div>
+            <p class="daily-text"><span id="daily-count">0</span> / 100 правильних відповідей</p>
+            <p class="daily-streak">🔥 Твоя серія: <span id="daily-streak">0</span> дн.</p>
+        </div>
 
         <div class="menu-container">
             <div class="mode-card mode-addition" onclick="showSubMenu('addition')" id="btn-addition">
                 <div class="mode-icon">➕</div>
-                <div class="mode-label">Сложение</div>
-                <div class="mode-desc">Складываем числа</div>
+                <div class="mode-label">Додавання</div>
+                <div class="mode-desc">Додаємо числа</div>
             </div>
             <div class="mode-card mode-subtraction" onclick="showSubMenu('subtraction')" id="btn-subtraction">
                 <div class="mode-icon">➖</div>
-                <div class="mode-label">Вычитание</div>
-                <div class="mode-desc">Вычитаем числа</div>
+                <div class="mode-label">Віднімання</div>
+                <div class="mode-desc">Віднімаємо числа</div>
             </div>
             <div class="mode-card mode-multiplication" onclick="showSubMenu('multiplication')" id="btn-multiplication">
                 <div class="mode-icon">✖️</div>
-                <div class="mode-label">Умножение</div>
-                <div class="mode-desc">Таблица умножения</div>
+                <div class="mode-label">Множення</div>
+                <div class="mode-desc">Таблиця множення</div>
+            </div>
+            <div class="mode-card mode-logic" onclick="showSubMenu('logic')" id="btn-logic">
+                <div class="mode-icon">🧩</div>
+                <div class="mode-label">Логіка</div>
+                <div class="mode-desc">Рівняння та ряди</div>
+            </div>
+            <div class="mode-card mode-blitz" onclick="startBlitzMode()" id="btn-blitz">
+                <div class="mode-icon">⏱️</div>
+                <div class="mode-label">Бліц-Турнір</div>
+                <div class="mode-desc">60 секунд на максимум</div>
+                <div class="diff-reward" style="margin-top: 5px;">+1 💰 / правильна</div>
             </div>
         </div>
 
         <!-- History button -->
-        <div class="history-btn-container">
+        <div class="history-btn-container" style="flex-wrap: wrap;">
             <button class="history-btn" onclick="showCalendar()" id="btn-history">
-                📅 Мои результаты
+                📅 Мої результати
+            </button>
+            <button class="history-btn shop-btn" onclick="showShop()" id="btn-shop">
+                🛒 Магазин нагород
+            </button>
+            <button class="history-btn achievements-btn" onclick="showAchievements()" id="btn-achievements" style="width: 100%; margin-top: 10px; background: var(--lavender);">
+                🏆 Досягнення
+            </button>
+        </div>
+
+        <!-- Logout container -->
+        <div class="logout-btn-container">
+            <button class="logout-btn" onclick="handleLogout()">
+                🚪 Змінити профіль
             </button>
         </div>
 
         <!-- Input mode toggle -->
         <div class="input-mode-toggle">
-            <span class="toggle-label">Способ ответа:</span>
+            <span class="toggle-label">Спосіб відповіді:</span>
             <div class="toggle-buttons">
                 <button class="toggle-btn active" id="toggle-choices" onclick="setInputMode('choices')">
-                    🔘 Варианты
+                    🔘 Варіанти
                 </button>
                 <button class="toggle-btn" id="toggle-numpad" onclick="setInputMode('numpad')">
-                    🔢 Клавиатура
+                    🔢 Клавіатура
                 </button>
             </div>
         </div>
@@ -71,7 +154,7 @@
         </button>
         <div class="submenu-header">
             <div class="submenu-icon" id="submenu-icon">➕</div>
-            <h2 class="submenu-title" id="submenu-title">Сложение</h2>
+            <h2 class="submenu-title" id="submenu-title">Додавання</h2>
         </div>
         <div class="submenu-container" id="submenu-container">
             <!-- Dynamically filled -->
@@ -84,9 +167,20 @@
             <button class="back-btn" onclick="goToMenu()" id="btn-back-game">
                 ← Меню
             </button>
+            <div class="game-stats">
+                <div class="game-economy">
+                    <span class="economy-icon">💰</span> <span id="game-coins">0</span>
+                </div>
+                <div class="game-economy combo">
+                    <span class="economy-icon">🔥</span> <span id="game-combo">0</span>
+                </div>
+            </div>
             <div class="score-display" id="score-display">
                 <span class="score-star">⭐</span>
                 <span class="score-value" id="score-value">0</span>
+            </div>
+            <div class="blitz-timer-display" id="blitz-timer-display" style="display: none; color: #ff4757; font-weight: bold; font-size: 1.2rem;">
+                ⏱ <span id="blitz-time-value">60</span> сек
             </div>
             <div class="progress-display" id="progress-display">
                 <span id="progress-current">1</span>/<span id="progress-total">20</span>
@@ -106,6 +200,30 @@
                 <span class="problem-num" id="num-b">5</span>
                 <span class="problem-eq">=</span>
                 <span class="problem-answer" id="answer-display">?</span>
+            </div>
+        </div>
+
+        <!-- Crossing tens steps (step-by-step decomposition) -->
+        <div class="crossing-container" id="crossing-container" style="display:none;">
+            <div class="crossing-equation-container" id="crossing-equation-container">
+                <div class="crossing-equation" id="crossing-equation"></div>
+            </div>
+            <div class="crossing-input-area">
+                <div class="crossing-input-display" id="crossing-input-display">?</div>
+                <div class="crossing-numpad-grid">
+                    <button class="numpad-btn" onclick="crossingInput(1)">1</button>
+                    <button class="numpad-btn" onclick="crossingInput(2)">2</button>
+                    <button class="numpad-btn" onclick="crossingInput(3)">3</button>
+                    <button class="numpad-btn" onclick="crossingInput(4)">4</button>
+                    <button class="numpad-btn" onclick="crossingInput(5)">5</button>
+                    <button class="numpad-btn" onclick="crossingInput(6)">6</button>
+                    <button class="numpad-btn" onclick="crossingInput(7)">7</button>
+                    <button class="numpad-btn" onclick="crossingInput(8)">8</button>
+                    <button class="numpad-btn" onclick="crossingInput(9)">9</button>
+                    <button class="numpad-btn numpad-clear" onclick="crossingClear()">⌫</button>
+                    <button class="numpad-btn" onclick="crossingInput(0)">0</button>
+                    <button class="numpad-btn numpad-submit" onclick="crossingSubmit()">✓</button>
+                </div>
             </div>
         </div>
 
@@ -144,8 +262,8 @@
     <div id="screen-complete" class="screen">
         <div class="complete-container">
             <div class="complete-emoji" id="complete-emoji">🎉</div>
-            <h2 class="complete-title">Молодец!</h2>
-            <p class="complete-subtitle" id="complete-subtitle">Ты справилась!</p>
+            <h2 class="complete-title">Молодець!</h2>
+            <p class="complete-subtitle" id="complete-subtitle">Ти впоралась!</p>
             <div class="complete-stats">
                 <div class="stat-item">
                     <div class="stat-icon">⭐</div>
@@ -155,7 +273,7 @@
                 <div class="stat-item">
                     <div class="stat-icon">📝</div>
                     <div class="stat-value" id="stat-total">20</div>
-                    <div class="stat-label">Всего</div>
+                    <div class="stat-label">Всього</div>
                 </div>
                 <div class="stat-item">
                     <div class="stat-icon">🏆</div>
@@ -165,10 +283,10 @@
             </div>
             <div class="complete-stars" id="complete-stars"></div>
             <button class="menu-btn" onclick="goToMenu()" id="btn-back-complete">
-                🏠 В главное меню
+                🏠 В головне меню
             </button>
             <button class="menu-btn play-again-btn" onclick="playAgain()" id="btn-play-again">
-                🔄 Ещё раз!
+                🔄 Ще раз!
             </button>
         </div>
     </div>
@@ -179,29 +297,97 @@
             ← Назад
         </button>
         <div class="calendar-header">
-            <h2 class="calendar-title">📅 Мои результаты</h2>
+            <h2 class="calendar-title">📅 Мої результати</h2>
         </div>
         <div class="calendar-nav">
             <button class="cal-nav-btn" onclick="calendarPrevMonth()" id="btn-cal-prev">‹</button>
-            <span class="cal-month-label" id="cal-month-label">Март 2026</span>
+            <span class="cal-month-label" id="cal-month-label">Березень 2026</span>
             <button class="cal-nav-btn" onclick="calendarNextMonth()" id="btn-cal-next">›</button>
         </div>
         <div class="calendar-grid" id="calendar-grid">
             <!-- Dynamically filled -->
         </div>
         <div class="day-details" id="day-details" style="display:none;">
-            <h3 class="day-details-title" id="day-details-title">28 марта</h3>
+            <h3 class="day-details-title" id="day-details-title">28 березня</h3>
             <div class="day-details-list" id="day-details-list">
                 <!-- Dynamically filled -->
             </div>
         </div>
         <div class="calendar-empty" id="calendar-empty" style="display:none;">
             <div class="empty-emoji">📚</div>
-            <p>Пока нет результатов.</p>
-            <p>Начни решать примеры!</p>
+            <p>Поки немає результатів.</p>
+            <p>Почни вирішувати приклади!</p>
         </div>
     </div>
 
+    <!-- ===== SHOP SCREEN ===== -->
+    <div id="screen-shop" class="screen">
+        <button class="back-btn" onclick="goToMenu()" id="btn-back-shop">
+            ← Назад
+        </button>
+        <div class="shop-header">
+            <h2 class="shop-title">🛒 Магазин</h2>
+            <div class="economy-item large">
+                <span class="economy-icon">💰</span>
+                <span class="economy-value" id="shop-coins">0</span>
+            </div>
+        </div>
+        
+        <div class="shop-container" style="display: flex; gap: 15px; flex-wrap: wrap; justify-content: center;">
+            <div class="shop-card">
+                <div class="shop-icon" style="font-size: 4rem; line-height: 1;">
+                    ⏱️
+                </div>
+                <h3 class="shop-item-title">15 хв Roblox</h3>
+                <p class="shop-item-desc">Обміняй 30 монет на 15 хвилин гри!</p>
+                
+                <button class="buy-btn" onclick="buyRobloxTime(15, 30)" id="btn-buy-time-15">
+                    Обміняти (30 💰)
+                </button>
+                <div class="buy-success-msg" id="msg-time-15-success" style="display:none; margin-top:10px;">
+                    ✨ Додано 15 хвилин гри! ✨
+                </div>
+                <div class="buy-error-msg" id="msg-time-15-error" style="display:none; margin-top:10px;">
+                    Потрібно більше монет!
+                </div>
+            </div>
+
+            <div class="shop-card">
+                <div class="shop-icon" style="font-size: 4rem; line-height: 1;">
+                    ⏳
+                </div>
+                <h3 class="shop-item-title">1 год Roblox</h3>
+                <p class="shop-item-desc">Обміняй 100 монет на 1 годину (60 хв) гри!</p>
+                
+                <button class="buy-btn" onclick="buyRobloxTime(60, 100)" id="btn-buy-time-60">
+                    Обміняти (100 💰)
+                </button>
+                <div class="buy-success-msg" id="msg-time-60-success" style="display:none; margin-top:10px;">
+                    ✨ Додано 1 годину гри! ✨
+                </div>
+                <div class="buy-error-msg" id="msg-time-60-error" style="display:none; margin-top:10px;">
+                    Потрібно більше монет!
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Firebase config and main logic -->
+    <!-- ===== ACHIEVEMENTS SCREEN ===== -->
+    <div id="screen-achievements" class="screen">
+        <button class="back-btn" onclick="goToMenu()" id="btn-back-achievements">
+            ← Назад
+        </button>
+        <div class="shop-header">
+            <h2 class="shop-title">🏆 Досягнення</h2>
+        </div>
+        
+        <div class="achievements-container" id="achievements-list">
+            <!-- Dynamically populated -->
+        </div>
+    </div>
+
+    <script src="firebase-config.js"></script>
     <script src="main.js"></script>
 </body>
 </html>

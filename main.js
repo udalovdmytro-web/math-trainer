@@ -12,21 +12,109 @@ const state = {
     numpadValue: '',
     sessionCorrect: 0,
     // Multiplication specifics
-    minA: 1,
+    minA: 2,
     maxA: 4,
+    // Crossing tens mode
+    crossingTens: false,
+    crossingStep: 0,
+    crossingData: null,
+    crossingInputValue: '',
     // Calendar
     calendarYear: new Date().getFullYear(),
     calendarMonth: new Date().getMonth(),
+    // Economy & Auth
+    userId: null,
+    coins: 0,
+    combo: 0,
+    robloxTime: 0,
+    daily: { date: '', count: 0, streak: 0, multLimits: {} },
+    achievements: [],
+    blitzRecord: 0,
+    history: [],
+    problemStartTime: 0
 };
 
-// ===== HISTORY (localStorage) =====
-function getHistory() {
+// ===== FIREBASE & HISTORY =====
+async function saveToFirebase() {
+    if (!state.userId) return;
     try {
-        const data = localStorage.getItem('mathHistory');
-        return data ? JSON.parse(data) : [];
-    } catch {
-        return [];
+        await db.collection("users").doc(state.userId).set({
+            coins: state.coins,
+            combo: state.combo,
+            robloxTime: state.robloxTime,
+            daily: state.daily,
+            achievements: state.achievements,
+            blitzRecord: state.blitzRecord,
+            history: state.history
+        });
+    } catch (e) {
+        console.error("Ошибка сохранения в Firebase: ", e);
     }
+}
+
+function updateEconomyUI() {
+    // Menu
+    const menuCoins = document.getElementById('menu-coins');
+    const menuCombo = document.getElementById('menu-combo');
+    if (menuCoins) menuCoins.textContent = state.coins;
+    if (menuCombo) menuCombo.textContent = state.combo;
+    
+    // Game
+    const gameCoins = document.getElementById('game-coins');
+    const gameCombo = document.getElementById('game-combo');
+    if (gameCoins) gameCoins.textContent = state.coins;
+    if (gameCombo) gameCombo.textContent = state.combo;
+    
+    // Shop
+    const shopCoins = document.getElementById('shop-coins');
+    if (shopCoins) shopCoins.textContent = state.coins;
+    
+    // Global Header
+    const globCoins = document.getElementById('global-total-coins');
+    if (globCoins) globCoins.textContent = state.coins;
+    const globRobloxTime = document.getElementById('global-roblox-time');
+    if (globRobloxTime) globRobloxTime.textContent = state.robloxTime;
+}
+
+function updateDailyUI() {
+    const dailyCount = document.getElementById('daily-count');
+    const dailyStreak = document.getElementById('daily-streak');
+    const dailyFill = document.getElementById('daily-progress-fill');
+    
+    if (dailyCount) dailyCount.textContent = state.daily.count;
+    if (dailyStreak) dailyStreak.textContent = state.daily.streak;
+    
+    if (dailyFill) {
+        let pct = Math.min(100, Math.round((state.daily.count / 100) * 100));
+        dailyFill.style.width = pct + '%';
+        if (pct === 100) {
+            dailyFill.style.background = 'var(--gold)';
+        } else {
+            dailyFill.style.background = 'var(--mint)';
+        }
+    }
+}
+
+function checkDailyReset() {
+    const today = new Date().toLocaleDateString('en-CA'); // e.g. "2026-04-11"
+    if (state.daily.date !== today) {
+        const yesterday = new Date();
+        yesterday.setDate(yesterday.getDate() - 1);
+        const yesterdayStr = yesterday.toLocaleDateString('en-CA');
+        
+        if (state.daily.date !== yesterdayStr || state.daily.count < 100) {
+            state.daily.streak = 0;
+        }
+        state.daily.count = 0;
+        state.daily.date = today;
+        state.daily.multLimits = {};
+        saveToFirebase();
+    }
+    updateDailyUI();
+}
+
+function getHistory() {
+    return state.history || [];
 }
 
 function saveSession(mode, difficultyLabel, correct, total) {
@@ -41,7 +129,8 @@ function saveSession(mode, difficultyLabel, correct, total) {
         timestamp: now.getTime(),
         time: now.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' }),
     });
-    localStorage.setItem('mathHistory', JSON.stringify(history));
+    state.history = history;
+    saveToFirebase();
 }
 
 function getHistoryForDate(dateStr) {
@@ -53,6 +142,96 @@ function getDatesWithHistory() {
     const dates = new Set();
     history.forEach(h => dates.add(h.date));
     return dates;
+}
+
+// ===== AUTH / LOGIN =====
+async function handleLogin() {
+    const pin = document.getElementById('login-pin').value;
+    const errorEl = document.getElementById('login-error');
+    if (pin.length !== 4) {
+        errorEl.style.display = 'block';
+        return;
+    }
+    errorEl.style.display = 'none';
+    
+    document.getElementById('btn-login').textContent = 'Загрузка...';
+    
+    try {
+        const docRef = db.collection("users").doc(pin);
+        const docSnap = await docRef.get();
+        if (docSnap.exists) {
+            const data = docSnap.data();
+            state.coins = data.coins || 0;
+            state.combo = data.combo || 0;
+            state.robloxTime = data.robloxTime || data.robux || 0;
+            state.daily = data.daily || { date: '', count: 0, streak: 0, multLimits: {} };
+            if (!state.daily.multLimits) state.daily.multLimits = {};
+            state.achievements = data.achievements || [];
+            state.blitzRecord = data.blitzRecord || 0;
+            state.history = data.history || [];
+        } else {
+            // New user
+            state.coins = 0;
+            state.combo = 0;
+            state.robloxTime = 0;
+            state.daily = { date: '', count: 0, streak: 0, multLimits: {} };
+            state.achievements = [];
+            state.blitzRecord = 0;
+            state.history = [];
+            await docRef.set({ coins: 0, combo: 0, robloxTime: 0, daily: state.daily, achievements: [], blitzRecord: 0, history: [] });
+        }
+        
+        state.userId = pin;
+        localStorage.setItem('savedPin', pin);
+        checkDailyReset();
+        updateEconomyUI();
+        document.getElementById('btn-login').textContent = 'Увійти';
+        document.getElementById('login-pin').value = '';
+        goToMenu();
+    } catch (e) {
+        console.error("Ошибка входа: ", e);
+        errorEl.textContent = 'Помилка: ' + (e.message || 'Невідомо');
+        errorEl.style.display = 'block';
+        document.getElementById('btn-login').textContent = 'Увійти';
+    }
+}
+
+function showNotification(title, desc, emoji) {
+    const container = document.getElementById('notification-container');
+    if (!container) return;
+
+    const toast = document.createElement('div');
+    toast.className = 'notification-toast';
+    toast.innerHTML = `
+        <div class="toast-emoji">${emoji}</div>
+        <div class="toast-content">
+            <div class="toast-title">${title}</div>
+            <div class="toast-desc">${desc}</div>
+        </div>
+    `;
+
+    container.appendChild(toast);
+
+    setTimeout(() => {
+        toast.classList.add('closing');
+        setTimeout(() => toast.remove(), 300);
+    }, 8000); // 8 seconds
+}
+
+function handleLogout() {
+    localStorage.removeItem('savedPin');
+    state.userId = null;
+    showScreen('screen-login');
+}
+
+function initAuth() {
+    const savedPin = localStorage.getItem('savedPin');
+    if (savedPin) {
+        document.getElementById('login-pin').value = savedPin;
+        handleLogin();
+    } else {
+        showScreen('screen-login');
+    }
 }
 
 // ===== SCREEN MANAGEMENT =====
@@ -70,6 +249,17 @@ function goToMenu() {
     state.score = 0;
     state.round = 0;
     state.sessionCorrect = 0;
+    state.crossingTens = false;
+    state.crossingStep = 0;
+    state.crossingData = null;
+    state.crossingInputValue = '';
+    if (typeof blitzTimer !== 'undefined' && blitzTimer) clearInterval(blitzTimer);
+    document.getElementById('progress-display').style.display = 'block';
+    if (document.getElementById('blitz-timer-display')) {
+        document.getElementById('blitz-timer-display').style.display = 'none';
+    }
+    document.getElementById('crossing-container').style.display = 'none';
+    document.getElementById('problem-container').style.display = '';
     showScreen('screen-menu');
 }
 
@@ -92,25 +282,37 @@ function showSubMenu(mode) {
     const configs = {
         addition: {
             icon: '➕',
-            title: 'Сложение',
+            title: 'Додавання',
             options: [
-                { emoji: '🌟', label: 'До 20', desc: 'Сложение в пределах 20', maxNum: 20 },
+                { emoji: '🌟', label: 'До 20', desc: 'Додавання в межах 20', maxNum: 20, reward: 1 },
+                { emoji: '🔟', label: 'Через десяток', desc: 'Розкладаємо через 10', crossing: true, reward: 2 },
             ]
         },
         subtraction: {
             icon: '➖',
-            title: 'Вычитание',
+            title: 'Віднімання',
             options: [
-                { emoji: '🌟', label: 'До 20', desc: 'Вычитание в пределах 20', maxNum: 20 },
+                { emoji: '🌟', label: 'До 20', desc: 'Віднімання в межах 20', maxNum: 20, reward: 2 },
+                { emoji: '🔟', label: 'Через десяток', desc: 'Розкладаємо через 10', crossing: true, reward: 3 },
             ]
         },
         multiplication: {
             icon: '✖️',
-            title: 'Умножение',
+            title: 'Множення',
             options: [
-                { emoji: '🐣', label: 'На 1 и 2', desc: 'Таблица на 1 и 2', maxA: 2, minA: 1 },
-                { emoji: '🐥', label: 'На 3 и 4', desc: 'Таблица на 3 и 4', maxA: 4, minA: 3 },
-                { emoji: '🦋', label: 'На 1—4', desc: 'Вся таблица', maxA: 4, minA: 1 },
+                { emoji: '🐣', label: 'На 2', desc: 'Множення на 2', minA: 2, maxA: 2, reward: 1 },
+                { emoji: '🐥', label: 'На 3', desc: 'Множення на 3', minA: 3, maxA: 3, reward: 1 },
+                { emoji: '🦆', label: 'На 4', desc: 'Множення на 4', minA: 4, maxA: 4, reward: 1 },
+                { emoji: '🦉', label: 'На 5', desc: 'Множення на 5', minA: 5, maxA: 5, reward: 1 },
+                { emoji: '🦋', label: 'Вся таблиця (2-5)', desc: 'Вся таблиця', minA: 2, maxA: 5, reward: 1 },
+            ]
+        },
+        logic: {
+            icon: '🧩',
+            title: 'Логіка',
+            options: [
+                { emoji: '❓', label: 'Рівняння', desc: 'Знайди невідоме', type: 'equation', reward: 3 },
+                { emoji: '🎲', label: 'Послідовності', desc: 'Продовж ряд', type: 'sequence', reward: 3 },
             ]
         },
     };
@@ -127,39 +329,90 @@ function showSubMenu(mode) {
             <span class="diff-emoji">${opt.emoji}</span>
             <div class="diff-label">${opt.label}</div>
             <div class="diff-desc">${opt.desc}</div>
+            <div class="diff-reward">+${opt.reward} 💰</div>
         `;
         card.onclick = () => {
             state.difficultyLabel = opt.label;
+            state.crossingTens = opt.crossing || false;
             if (mode === 'multiplication') {
-                state.minA = opt.minA || 1;
+                state.minA = opt.minA || 2;
                 state.maxA = opt.maxA || 4;
+            } else if (mode === 'logic') {
+                state.logicMode = opt.type;
             } else {
-                state.maxNum = opt.maxNum;
+                state.maxNum = opt.maxNum || 20;
             }
             startGame();
         };
         submenuContainer.appendChild(card);
     });
 
-    // For addition/subtraction with only 1 option, go directly to game
-    if (config.options.length === 1) {
-        state.difficultyLabel = config.options[0].label;
-        state.maxNum = config.options[0].maxNum;
-        startGame();
-        return;
+    showScreen('screen-submenu');
+}
+
+// ===== BLITZ MODE =====
+let blitzTimer = null;
+let blitzSeconds = 60;
+
+function startBlitzMode() {
+    state.mode = 'blitz';
+    state.score = 0;
+    state.sessionCorrect = 0;
+    state.round = 0; 
+    state.difficultyLabel = 'Бліц';
+    blitzSeconds = 60;
+
+    document.getElementById('score-value').textContent = '0';
+    document.getElementById('progress-display').style.display = 'none';
+    
+    const blitzTimerDisplay = document.getElementById('blitz-timer-display');
+    if (blitzTimerDisplay) {
+        blitzTimerDisplay.style.display = 'block';
+        document.getElementById('blitz-time-value').textContent = '60';
     }
 
-    showScreen('screen-submenu');
+    showScreen('screen-game');
+    nextProblem();
+
+    if (blitzTimer) clearInterval(blitzTimer);
+    blitzTimer = setInterval(() => {
+        blitzSeconds--;
+        document.getElementById('blitz-time-value').textContent = blitzSeconds;
+        if (blitzSeconds <= 0) {
+            endBlitzMode();
+        }
+    }, 1000);
+}
+
+function endBlitzMode() {
+    clearInterval(blitzTimer);
+    state.answered = true; // disable further inputs
+    showCompletion();
 }
 
 // ===== PROBLEM GENERATION =====
 function generateProblem() {
     let a, b, answer, opSymbol;
 
+    if (state.mode === 'blitz') {
+        const isAdd = randomInt(0, 1) === 1;
+        if (isAdd) {
+            answer = randomInt(6, 20);
+            a = randomInt(3, answer - 3);
+            b = answer - a;
+            opSymbol = '+';
+        } else {
+            a = randomInt(6, 20);
+            b = randomInt(3, a);
+            answer = a - b;
+            opSymbol = '−';
+        }
+        return { a, b, answer, opSymbol };
+    }
+
     switch (state.mode) {
         case 'addition':
             // a + b = ?, both a,b >= 3, result <= maxNum
-            // min sum = 6, max sum = maxNum
             answer = randomInt(6, state.maxNum);
             a = randomInt(3, answer - 3);
             b = answer - a;
@@ -167,20 +420,43 @@ function generateProblem() {
             break;
 
         case 'subtraction':
-            // a - b = ?, both a,b >= 3, a >= b, a <= maxNum
-            // a must be >= 6 (since b >= 3, a >= b >= 3, and a >= 3+3=6)
+            // a - b = ?, b >= 3, answer >= 3
             a = randomInt(6, state.maxNum);
-            b = randomInt(3, a);
+            b = randomInt(3, Math.max(3, a - 3));
             answer = a - b;
             opSymbol = '−';
             break;
 
         case 'multiplication':
-            // a × b = ?, a is within minA..maxA (1-4)
+            // a × b = ?, no multiplying by 1
             a = randomInt(state.minA, state.maxA);
-            b = randomInt(1, 10);
+            b = randomInt(2, 10);
             answer = a * b;
             opSymbol = '×';
+            break;
+
+        case 'logic':
+            if (state.logicMode === 'equation') {
+                let c = randomInt(8, 20);
+                let unknownA = randomInt(1, c - 1);
+                let unknownB = c - unknownA;
+                if (randomInt(0, 1) === 1) {
+                    answer = unknownA;
+                    a = `? + ${unknownB} = ${c}`;
+                } else {
+                    answer = unknownB;
+                    a = `${unknownA} + ? = ${c}`;
+                }
+                b = '';
+                opSymbol = '';
+            } else {
+                let step = randomInt(2, 5);
+                let start = randomInt(1, 10);
+                a = `${start}, ${start + step}, ${start + 2*step},`;
+                b = '';
+                opSymbol = '';
+                answer = start + 3*step;
+            }
             break;
     }
 
@@ -232,6 +508,9 @@ function startGame() {
     state.round = 0;
     state.sessionCorrect = 0;
     state.numpadValue = '';
+    state.crossingStep = 0;
+    state.crossingData = null;
+    state.crossingInputValue = '';
 
     document.getElementById('score-value').textContent = '0';
     document.getElementById('progress-total').textContent = state.totalRounds;
@@ -244,21 +523,10 @@ function nextProblem() {
     state.answered = false;
     state.numpadValue = '';
 
-    if (state.round > state.totalRounds) {
+    if (state.mode !== 'blitz' && state.round > state.totalRounds) {
         showCompletion();
         return;
     }
-
-    state.currentProblem = generateProblem();
-    const { a, b, answer, opSymbol } = state.currentProblem;
-
-    document.getElementById('num-a').textContent = a;
-    document.getElementById('op').textContent = opSymbol;
-    document.getElementById('num-b').textContent = b;
-
-    const answerDisplay = document.getElementById('answer-display');
-    answerDisplay.textContent = '?';
-    answerDisplay.className = 'problem-answer';
 
     document.getElementById('progress-current').textContent = state.round;
     document.getElementById('progress-bar').style.width = `${((state.round - 1) / state.totalRounds) * 100}%`;
@@ -268,6 +536,42 @@ function nextProblem() {
 
     const problemContainer = document.getElementById('problem-container');
     problemContainer.classList.remove('shake');
+
+    // Crossing tens mode
+    if (state.crossingTens) {
+        problemContainer.style.display = 'none';
+        document.getElementById('choices-container').style.display = 'none';
+        document.getElementById('numpad-container').style.display = 'none';
+        document.getElementById('crossing-container').style.display = 'flex';
+        startCrossingProblem();
+        state.problemStartTime = Date.now();
+        return;
+    }
+
+    // Normal mode
+    problemContainer.style.display = '';
+    document.getElementById('crossing-container').style.display = 'none';
+
+    state.currentProblem = generateProblem();
+    const { a, b, answer, opSymbol } = state.currentProblem;
+
+    document.getElementById('num-a').textContent = a;
+    document.getElementById('op').textContent = opSymbol;
+    document.getElementById('num-b').textContent = b;
+
+    const eqSign = document.querySelector('.problem-eq');
+    const numA = document.getElementById('num-a');
+    if (state.mode === 'logic') {
+        if (eqSign) eqSign.style.display = 'none';
+        if (numA) numA.style.marginRight = '15px';
+    } else {
+        if (eqSign) eqSign.style.display = 'inline';
+        if (numA) numA.style.marginRight = '0';
+    }
+
+    const answerDisplay = document.getElementById('answer-display');
+    answerDisplay.textContent = '?';
+    answerDisplay.className = 'problem-answer';
 
     if (state.inputMode === 'choices') {
         document.getElementById('choices-container').style.display = 'grid';
@@ -287,6 +591,8 @@ function nextProblem() {
         document.getElementById('numpad-display').textContent = '?';
         enableNumpad(true);
     }
+    
+    state.problemStartTime = Date.now();
 }
 
 // ===== ANSWER CHECKING =====
@@ -326,7 +632,221 @@ function numpadSubmit() {
 }
 
 function enableNumpad(enabled) {
-    document.querySelectorAll('.numpad-btn').forEach(btn => {
+    document.querySelectorAll('#numpad-container .numpad-btn').forEach(btn => {
+        btn.disabled = !enabled;
+    });
+}
+
+// ===== CROSSING TENS MODE =====
+function generateCrossingProblem() {
+    let a, b;
+    if (state.mode === 'addition') {
+        // a + b crosses 10: both 3-9, sum > 10
+        do {
+            a = randomInt(3, 9);
+            b = randomInt(3, 9);
+        } while (a + b <= 10 || a + b > 18);
+
+        const toTen = 10 - a;
+        const remainder = b - toTen;
+        const answer = a + b;
+
+        return {
+            a, b, answer, opSymbol: '+', crossOp: '+',
+            answers: [10, remainder, answer]
+        };
+    } else {
+        // subtraction: a > 10, crossing below 10
+        a = randomInt(11, 17);
+        const minB = Math.max(3, a - 9);
+        const maxB = Math.min(9, a - 3);
+        b = randomInt(minB, maxB);
+
+        const toTen = a - 10;
+        const remainder = b - toTen;
+        const answer = a - b;
+
+        return {
+            a, b, answer, opSymbol: '−', crossOp: '−',
+            answers: [10, remainder, answer]
+        };
+    }
+}
+
+function startCrossingProblem() {
+    const problem = generateCrossingProblem();
+    state.crossingData = problem;
+    state.crossingStep = 1;
+    state.crossingInputValue = '';
+    state.currentProblem = problem;
+
+    renderCrossingSteps();
+    document.getElementById('crossing-input-display').textContent = '?';
+    document.getElementById('crossing-input-display').className = 'crossing-input-display';
+    enableCrossingNumpad(true);
+}
+
+function renderCrossingSteps() {
+    const eqEl = document.getElementById('crossing-equation');
+    const p = state.crossingData;
+    const currentStep = state.crossingStep;
+
+    // Base structure: a op b =
+    let html = `<span class="crossing-num">${p.a}</span> <span class="crossing-op">${p.opSymbol}</span> <span class="crossing-num">${p.b}</span> <span class="crossing-eq">=</span> `;
+
+    // Step 1: the 10
+    if (currentStep > 1) {
+        html += `<span class="crossing-num-filled">${p.answers[0]}</span>`;
+    } else {
+        html += `<span class="crossing-num-active">?</span>`;
+    }
+
+    html += ` <span class="crossing-op">${p.crossOp}</span> `;
+
+    // Step 2: remainder
+    if (currentStep > 2) {
+        html += `<span class="crossing-num-filled">${p.answers[1]}</span>`;
+    } else if (currentStep === 2) {
+        html += `<span class="crossing-num-active">?</span>`;
+    } else {
+        html += `<span class="crossing-num-locked">?</span>`;
+    }
+
+    html += ` <span class="crossing-eq">=</span> `;
+
+    // Step 3: answer
+    if (currentStep > 3) {
+        html += `<span class="crossing-result filled">${p.answers[2]}</span>`;
+    } else if (currentStep === 3) {
+        html += `<span class="crossing-num-active">?</span>`;
+    } else {
+        html += `<span class="crossing-num-locked">?</span>`;
+    }
+
+    eqEl.innerHTML = html;
+}
+
+function crossingInput(digit) {
+    if (state.answered) return;
+    if (state.crossingInputValue.length >= 2) return;
+
+    state.crossingInputValue += digit.toString();
+    document.getElementById('crossing-input-display').textContent = state.crossingInputValue;
+}
+
+function crossingClear() {
+    if (state.answered) return;
+    state.crossingInputValue = state.crossingInputValue.slice(0, -1);
+    document.getElementById('crossing-input-display').textContent = state.crossingInputValue || '?';
+}
+
+function crossingSubmit() {
+    if (state.answered) return;
+    if (state.crossingInputValue === '') return;
+
+    const userAnswer = parseInt(state.crossingInputValue);
+    const p = state.crossingData;
+    const currentAns = p.answers[state.crossingStep - 1];
+    const correct = userAnswer === currentAns;
+    const inputDisplay = document.getElementById('crossing-input-display');
+
+    if (correct) {
+        inputDisplay.className = 'crossing-input-display correct-flash';
+        inputDisplay.textContent = '✓ ' + userAnswer;
+        
+        createStarBurst();
+        enableCrossingNumpad(false);
+
+        if (state.crossingStep >= 3) {
+            // All steps done — problem complete!
+            state.answered = true;
+            state.score++;
+            state.sessionCorrect++;
+            document.getElementById('score-value').textContent = state.score;
+
+            // Re-render final state
+            renderCrossingSteps();
+
+            // Economy
+            state.combo++;
+            let earned = state.mode === 'subtraction' ? 3 : 2;
+            state.coins += earned;
+
+            if (state.daily && state.daily.count < 100) {
+                state.daily.count++;
+                if (state.daily.count === 100) {
+                    state.daily.streak++;
+                    state.coins += 50;
+                    setTimeout(() => showNotification('Завдання дня виконано!', '+50 монет! Серія: ' + state.daily.streak + ' дн.', '🎯'), 500);
+                }
+                updateDailyUI();
+            }
+
+            const timeTaken = Date.now() - state.problemStartTime;
+            if (typeof checkAchievements === 'function') checkAchievements(timeTaken);
+            updateEconomyUI();
+            saveToFirebase();
+
+            const feedback = document.getElementById('feedback');
+            const emojis = ['🎉', '⭐', '🌟', '💫', '✨', '🎊', '💖', '🦄', '🌈', '🎀'];
+            feedback.textContent = emojis[Math.floor(Math.random() * emojis.length)];
+            feedback.className = 'feedback show';
+
+            if (state.sessionCorrect % 3 === 0) launchConfetti();
+
+            setTimeout(nextProblem, 1500);
+        } else {
+            // Move to next step
+            setTimeout(() => {
+                state.crossingStep++;
+                state.crossingInputValue = '';
+                renderCrossingSteps();
+                inputDisplay.textContent = '?';
+                inputDisplay.className = 'crossing-input-display';
+                enableCrossingNumpad(true);
+            }, 700);
+        }
+    } else {
+        // Wrong answer for step
+        inputDisplay.className = 'crossing-input-display wrong-flash';
+        inputDisplay.textContent = '✗ ' + userAnswer;
+        
+        const eqEl = document.getElementById('crossing-equation');
+        eqEl.classList.add('shake');
+        setTimeout(() => eqEl.classList.remove('shake'), 500);
+
+        // Show correct answer briefly, then let them continue
+        setTimeout(() => {
+            inputDisplay.textContent = 'Відповідь: ' + currentAns;
+        }, 600);
+
+        setTimeout(() => {
+            if (state.crossingStep >= 3) {
+                // Final step was wrong — still finish the problem
+                state.answered = true;
+                state.combo = 0;
+                updateEconomyUI();
+                saveToFirebase();
+
+                renderCrossingSteps();
+
+                setTimeout(nextProblem, 1500);
+            } else {
+                state.crossingStep++;
+                state.crossingInputValue = '';
+                renderCrossingSteps();
+                inputDisplay.textContent = '?';
+                inputDisplay.className = 'crossing-input-display';
+                enableCrossingNumpad(true);
+            }
+        }, 1400);
+
+        enableCrossingNumpad(false);
+    }
+}
+
+function enableCrossingNumpad(enabled) {
+    document.querySelectorAll('.crossing-numpad-grid .numpad-btn').forEach(btn => {
         btn.disabled = !enabled;
     });
 }
@@ -340,6 +860,48 @@ function handleResult(correct, userAnswer, btnElement) {
         state.score++;
         state.sessionCorrect++;
         document.getElementById('score-value').textContent = state.score;
+
+        // Economy
+        state.combo++;
+        let earned = 1;
+        if (state.mode === 'subtraction') earned = 2;
+        if (state.mode === 'logic') earned = 3;
+
+        // Multiplication anti-abuse
+        if (state.mode === 'multiplication' && state.minA === state.maxA) {
+            if (!state.daily.multLimits) state.daily.multLimits = {};
+            const num = state.minA;
+            if (!state.daily.multLimits[num]) state.daily.multLimits[num] = 0;
+            
+            if (state.daily.multLimits[num] >= 60) {
+                earned = 0; // limit reached
+                if (state.daily.multLimits[num] === 60) {
+                    showNotification('Ліміт вичерпано!', `Ти вже багато розв'язав на ${num}. Обирай інші приклади, щоб отримувати монети.`, '🚫');
+                    state.daily.multLimits[num]++; // increment to not show msg again
+                }
+            } else {
+                state.daily.multLimits[num]++;
+            }
+        }
+
+        state.coins += earned;
+        
+        // Daily logic
+        if (state.daily && state.daily.count < 100) {
+            state.daily.count++;
+            if (state.daily.count === 100) {
+                state.daily.streak++;
+                state.coins += 50; 
+                setTimeout(() => showNotification('Завдання дня виконано!', '+50 монет! Серія: ' + state.daily.streak + ' дн.', '🎯'), 500);
+            }
+            updateDailyUI();
+        }
+        
+        const timeTaken = Date.now() - state.problemStartTime;
+        if (typeof checkAchievements === 'function') checkAchievements(timeTaken);
+
+        updateEconomyUI();
+        saveToFirebase();
 
         answerDisplay.textContent = state.currentProblem.answer;
         answerDisplay.className = 'problem-answer correct';
@@ -356,14 +918,19 @@ function handleResult(correct, userAnswer, btnElement) {
 
         createStarBurst();
 
-        if (state.sessionCorrect % 3 === 0) {
+        if (state.sessionCorrect % 3 === 0 && state.mode !== 'blitz') {
             launchConfetti();
         }
 
         disableChoices();
-        setTimeout(nextProblem, 1200);
+        setTimeout(nextProblem, state.mode === 'blitz' ? 600 : 1200);
 
     } else {
+        // Economy
+        state.combo = 0;
+        updateEconomyUI();
+        saveToFirebase();
+
         answerDisplay.textContent = userAnswer;
         answerDisplay.className = 'problem-answer wrong';
 
@@ -393,12 +960,12 @@ function handleResult(correct, userAnswer, btnElement) {
             }
 
             if (state.inputMode === 'numpad') {
-                document.getElementById('numpad-display').textContent = 'Ответ: ' + state.currentProblem.answer;
+                document.getElementById('numpad-display').textContent = 'Відповідь: ' + state.currentProblem.answer;
             }
         }, 800);
 
         disableChoices();
-        setTimeout(nextProblem, 2200);
+        setTimeout(nextProblem, state.mode === 'blitz' ? 1000 : 2200);
     }
 }
 
@@ -412,11 +979,11 @@ function disableChoices() {
 // ===== COMPLETION SCREEN =====
 function showCompletion() {
     const correct = state.sessionCorrect;
-    const total = state.totalRounds;
-    const percent = Math.round((correct / total) * 100);
+    const total = state.mode === 'blitz' ? state.round - 1 : state.totalRounds;
+    let percent = total > 0 ? Math.round((correct / total) * 100) : 0;
 
     // Save to history
-    const modeLabels = { addition: 'Сложение', subtraction: 'Вычитание', multiplication: 'Умножение' };
+    const modeLabels = { addition: 'Додавання', subtraction: 'Віднімання', multiplication: 'Множення', blitz: 'Бліц-Турнір', logic: 'Логіка' };
     saveSession(state.mode, state.difficultyLabel || modeLabels[state.mode], correct, total);
 
     document.getElementById('stat-correct').textContent = correct;
@@ -426,18 +993,30 @@ function showCompletion() {
     const completeEmoji = document.getElementById('complete-emoji');
     const subtitle = document.getElementById('complete-subtitle');
 
-    if (percent === 100) {
-        completeEmoji.textContent = '🏆';
-        subtitle.textContent = 'Идеально! Ты настоящая звезда! 🌟';
-    } else if (percent >= 80) {
-        completeEmoji.textContent = '🎉';
-        subtitle.textContent = 'Отлично! Так держать! 💪';
-    } else if (percent >= 60) {
-        completeEmoji.textContent = '😊';
-        subtitle.textContent = 'Хорошо! Ещё немного практики! 📚';
+    if (state.mode === 'blitz') {
+        if (correct > state.blitzRecord) {
+            completeEmoji.textContent = '🔥';
+            subtitle.textContent = `Новий рекорд! Ти перевершив себе (Минулий: ${state.blitzRecord})`;
+            state.blitzRecord = correct;
+            saveToFirebase();
+        } else {
+            completeEmoji.textContent = '⏱️';
+            subtitle.textContent = `Час вийшов! Твій рекорд: ${state.blitzRecord}`;
+        }
     } else {
-        completeEmoji.textContent = '💪';
-        subtitle.textContent = 'Не сдавайся! Попробуй ещё раз! 🌈';
+        if (percent === 100) {
+            completeEmoji.textContent = '🏆';
+            subtitle.textContent = 'Ідеально! Ти справжня зірка! 🌟';
+        } else if (percent >= 80) {
+            completeEmoji.textContent = '🎉';
+            subtitle.textContent = 'Відмінно! Так тримати! 💪';
+        } else if (percent >= 60) {
+            completeEmoji.textContent = '😊';
+            subtitle.textContent = 'Добре! Ще трохи практики! 📚';
+        } else {
+            completeEmoji.textContent = '💪';
+            subtitle.textContent = 'Не здавайся! Спробуй ще раз! 🌈';
+        }
     }
 
     const starsContainer = document.getElementById('complete-stars');
@@ -469,16 +1048,16 @@ function playAgain() {
 
 // ===== CALENDAR =====
 const MONTH_NAMES = [
-    'Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь',
-    'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'
+    'Січень', 'Лютий', 'Березень', 'Квітень', 'Травень', 'Червень',
+    'Липень', 'Серпень', 'Вересень', 'Жовтень', 'Листопад', 'Грудень'
 ];
 
 const MONTH_NAMES_GEN = [
-    'января', 'февраля', 'марта', 'апреля', 'мая', 'июня',
-    'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря'
+    'січня', 'лютого', 'березня', 'квітня', 'травня', 'червня',
+    'липня', 'серпня', 'вересня', 'жовтня', 'листопада', 'грудня'
 ];
 
-const DAY_NAMES = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
+const DAY_NAMES = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Нд'];
 
 function showCalendar() {
     renderCalendar();
@@ -593,9 +1172,9 @@ function showDayDetails(dateStr, dayNum) {
     list.innerHTML = '';
 
     const modeLabels = {
-        addition: '➕ Сложение',
-        subtraction: '➖ Вычитание',
-        multiplication: '✖️ Умножение',
+        addition: '➕ Додавання',
+        subtraction: '➖ Віднімання',
+        multiplication: '✖️ Множення',
     };
 
     const modeColors = {
@@ -755,6 +1334,140 @@ function createFloatingDecorations() {
     }
 }
 
+// ===== ACHIEVEMENTS =====
+const ACHIEVEMENTS_DEF = [
+    { id: 'first_blood', title: 'Перший крок', desc: 'Виріши 1 приклад', emoji: '🐣', requirement: { type: 'total', count: 1 } },
+    { id: 'master_100', title: 'Майстер', desc: 'Виріши 100 прикладів', emoji: '🎓', requirement: { type: 'total', count: 100 } },
+    { id: 'combo_10', title: 'Нестримний', desc: 'Збери комбо 10', emoji: '🔥', requirement: { type: 'combo', count: 10 } },
+    { id: 'streak_3', title: 'Марафонець', desc: 'Виконай Завдання дня 3 дні поспіль', emoji: '🏃', requirement: { type: 'streak', count: 3 } },
+    { id: 'speed_3', title: 'Блискавка', desc: 'Дай відповідь швидше ніж за 3 сек', emoji: '⚡', requirement: { type: 'speed', time: 3000 } }
+];
+
+function checkAchievements(timeTaken = 999999) {
+    if (!state.achievements) state.achievements = [];
+    const unlocked = new Set(state.achievements);
+    let newUnlock = false;
+
+    let totalCorrect = state.sessionCorrect || 0;
+    if (state.history) {
+        state.history.forEach(h => totalCorrect += (h.correct || 0));
+    }
+
+    ACHIEVEMENTS_DEF.forEach(ach => {
+        if (!unlocked.has(ach.id)) {
+            let met = false;
+            if (ach.requirement.type === 'total' && totalCorrect >= ach.requirement.count) met = true;
+            if (ach.requirement.type === 'combo' && state.combo >= ach.requirement.count) met = true;
+            if (ach.requirement.type === 'streak' && state.daily && state.daily.streak >= ach.requirement.count) met = true;
+            if (ach.requirement.type === 'speed' && timeTaken <= ach.requirement.time) met = true;
+
+            if (met) {
+                state.achievements.push(ach.id);
+                newUnlock = true;
+                setTimeout(() => showNotification('🏆 ' + ach.title, ach.desc, ach.emoji), 1000);
+            }
+        }
+    });
+
+    if (newUnlock) {
+        saveToFirebase();
+    }
+}
+
+function showAchievements() {
+    const list = document.getElementById('achievements-list');
+    list.innerHTML = '';
+    
+    if (!state.achievements) state.achievements = [];
+    const unlocked = new Set(state.achievements);
+
+    ACHIEVEMENTS_DEF.forEach((ach, i) => {
+        const isUnlocked = unlocked.has(ach.id);
+        const card = document.createElement('div');
+        card.className = 'achievement-card ' + (isUnlocked ? 'unlocked' : 'locked');
+        card.style.animationDelay = `${i * 0.1}s`;
+        
+        card.innerHTML = `
+            <div class="ach-emoji">${isUnlocked ? ach.emoji : '🔒'}</div>
+            <div class="ach-info">
+                <div class="ach-title">${ach.title}</div>
+                <div class="ach-desc">${ach.desc}</div>
+            </div>
+        `;
+        list.appendChild(card);
+    });
+
+    showScreen('screen-achievements');
+}
+
+// ===== SHOP =====
+function showShop() {
+    updateEconomyUI();
+    document.getElementById('msg-time-15-success').style.display = 'none';
+    document.getElementById('msg-time-15-error').style.display = 'none';
+    document.getElementById('msg-time-60-success').style.display = 'none';
+    document.getElementById('msg-time-60-error').style.display = 'none';
+    
+    // update button text
+    const btn15 = document.getElementById('btn-buy-time-15');
+    if (state.coins >= 30) {
+        btn15.textContent = 'Обміняти (30 💰)';
+        btn15.classList.remove('disabled');
+        btn15.disabled = false;
+    } else {
+        btn15.textContent = 'Не вистачає монет';
+        btn15.classList.add('disabled');
+        btn15.disabled = true;
+    }
+
+    const btn60 = document.getElementById('btn-buy-time-60');
+    if (state.coins >= 100) {
+        btn60.textContent = 'Обміняти (100 💰)';
+        btn60.classList.remove('disabled');
+        btn60.disabled = false;
+    } else {
+        btn60.textContent = 'Не вистачає монет';
+        btn60.classList.add('disabled');
+        btn60.disabled = true;
+    }
+    
+    showScreen('screen-shop');
+}
+
+function buyRobloxTime(minutes, cost) {
+    const buyBtn = document.getElementById(`btn-buy-time-${minutes}`);
+    const successMsg = document.getElementById(`msg-time-${minutes}-success`);
+    const errorMsg = document.getElementById(`msg-time-${minutes}-error`);
+    
+    if (state.coins >= cost) {
+        state.coins -= cost;
+        state.robloxTime += minutes;
+        updateEconomyUI();
+        saveToFirebase();
+        
+        successMsg.style.display = 'block';
+        errorMsg.style.display = 'none';
+        
+        // Fireworks
+        setTimeout(launchConfetti, 100);
+        setTimeout(launchConfetti, 500);
+        setTimeout(launchConfetti, 900);
+        
+        // Disable button briefly or update states
+        setTimeout(() => {
+            showShop(); // refreshes UI
+            successMsg.style.display = 'block'; // keep it visible for a bit
+            setTimeout(() => successMsg.style.display = 'none', 3000);
+        }, 100);
+    } else {
+        successMsg.style.display = 'none';
+        errorMsg.style.display = 'block';
+        
+        buyBtn.classList.add('shake');
+        setTimeout(() => buyBtn.classList.remove('shake'), 400);
+    }
+}
+
 // ===== INIT =====
 createFloatingDecorations();
 
@@ -771,3 +1484,7 @@ if (!CanvasRenderingContext2D.prototype.roundRect) {
         this.closePath();
     };
 }
+
+// Start auth flow
+setTimeout(initAuth, 100);
+
