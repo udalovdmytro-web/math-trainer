@@ -45,7 +45,15 @@ const CONFIG = {
     dailyBonus: 50,          // coins awarded on completing the daily goal
     multDivDailyLimit: 60,   // per-operand daily coin cap for ×/÷ (anti-abuse)
     saveDebounceMs: 2000,    // coalesce Firebase writes within this window
-    historyCap: 400          // keep only the most recent N sessions (Firestore doc size)
+    historyCap: 400,         // keep only the most recent N sessions (Firestore doc size)
+    // Delay (ms) after an answer before the next problem appears — tune the pacing here
+    pace: {
+        correct: 700,        // correct answer → next (normal modes)
+        wrong: 1800,         // wrong answer → next (longer: time to read the right answer)
+        blitzCorrect: 450,   // correct, blitz
+        blitzWrong: 900,     // wrong, blitz
+        crossingDone: 900    // "через десяток" problem solved → next
+    }
 };
 
 // Per-mode metadata: label (UI/history), calendar color, and coin reward per correct answer.
@@ -941,7 +949,7 @@ function crossingSubmit() {
 
             if (state.sessionCorrect % 3 === 0) launchConfetti();
 
-            setTimeout(nextProblem, 1500);
+            setTimeout(nextProblem, CONFIG.pace.crossingDone);
         } else {
             // Move to next step
             setTimeout(() => {
@@ -978,7 +986,7 @@ function crossingSubmit() {
 
                 renderCrossingSteps();
 
-                setTimeout(nextProblem, 1500);
+                setTimeout(nextProblem, CONFIG.pace.wrong);
             } else {
                 state.crossingStep++;
                 state.crossingInputValue = '';
@@ -1081,7 +1089,7 @@ function handleResult(correct, userAnswer, btnElement) {
         }
 
         disableChoices();
-        setTimeout(nextProblem, state.mode === 'blitz' ? 600 : 1200);
+        setTimeout(nextProblem, state.mode === 'blitz' ? CONFIG.pace.blitzCorrect : CONFIG.pace.correct);
 
     } else {
         // Economy
@@ -1123,7 +1131,7 @@ function handleResult(correct, userAnswer, btnElement) {
         }, 800);
 
         disableChoices();
-        setTimeout(nextProblem, state.mode === 'blitz' ? 1000 : 2200);
+        setTimeout(nextProblem, state.mode === 'blitz' ? CONFIG.pace.blitzWrong : CONFIG.pace.wrong);
     }
 }
 
