@@ -698,19 +698,38 @@ function randomInt(min, max) {
 
 function generateChoices(correctAnswer) {
     const choices = new Set([correctAnswer]);
-    let attempts = 0;
+    const p = state.currentProblem;
 
+    // Plausible distractors instead of random noise:
+    //  × → neighbouring table products (e.g. 7×8=56 → 49, 64, 54)
+    //  ÷ → neighbouring quotients (and the divisor, a common slip)
+    let candidates = [];
+    if (p && state.mode === 'multiplication' && typeof p.a === 'number' && typeof p.b === 'number') {
+        const a = p.a, b = p.b;
+        candidates = [
+            a * (b - 1), a * (b + 1), (a - 1) * b, (a + 1) * b,
+            (a - 1) * (b + 1), (a + 1) * (b - 1),
+            a * (b - 2), a * (b + 2), (a - 2) * b, (a + 2) * b
+        ];
+    } else if (p && state.mode === 'division') {
+        const q = correctAnswer;
+        candidates = [q - 1, q + 1, q - 2, q + 2, q - 3, q + 3, p.b];
+    }
+
+    shuffleArray(candidates);
+    for (const c of candidates) {
+        if (choices.size >= 4) break;
+        if (c > 0 && c !== correctAnswer) choices.add(c);
+    }
+
+    // Fallback for other modes (add/sub/logic) or if too few plausible ones: near-by numbers
+    let attempts = 0;
     while (choices.size < 4 && attempts < 100) {
-        let wrong;
         const offset = randomInt(1, Math.max(5, Math.ceil(correctAnswer * 0.5)));
-        if (Math.random() > 0.5) {
-            wrong = correctAnswer + randomInt(1, offset);
-        } else {
-            wrong = correctAnswer - randomInt(1, offset);
-        }
-        if (wrong >= 0 && wrong !== correctAnswer) {
-            choices.add(wrong);
-        }
+        const wrong = Math.random() > 0.5
+            ? correctAnswer + randomInt(1, offset)
+            : correctAnswer - randomInt(1, offset);
+        if (wrong >= 0 && wrong !== correctAnswer) choices.add(wrong);
         attempts++;
     }
 
