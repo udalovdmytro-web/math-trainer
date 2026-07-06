@@ -36,9 +36,10 @@
     --shadow-sm: 0 2px 8px rgba(74, 74, 106, 0.08);
     --shadow-md: 0 4px 16px rgba(74, 74, 106, 0.12);
     --shadow-lg: 0 8px 32px rgba(74, 74, 106, 0.16);
-    --shadow-glow-pink: 0 4px 20px rgba(255, 182, 193, 0.4);
-    --shadow-glow-lavender: 0 4px 20px rgba(232, 213, 245, 0.5);
-    --shadow-glow-mint: 0 4px 20px rgba(181, 234, 215, 0.5);
+    /* blur kept < side margin (20px) so the glow doesn't reach the screen edge and get clipped on phones */
+    --shadow-glow-pink: 0 4px 12px rgba(255, 182, 193, 0.4);
+    --shadow-glow-lavender: 0 4px 12px rgba(232, 213, 245, 0.5);
+    --shadow-glow-mint: 0 4px 12px rgba(181, 234, 215, 0.5);
     
     /* Sizing */
     --radius: 20px;
@@ -101,7 +102,8 @@ body {
 /* ===== SCREENS ===== */
 .screen {
     display: none;
-    padding: 20px;
+    /* base 20px + iOS safe-area (notch / home indicator / landscape ears) */
+    padding: calc(20px + env(safe-area-inset-top)) calc(20px + env(safe-area-inset-right)) calc(20px + env(safe-area-inset-bottom)) calc(20px + env(safe-area-inset-left));
     min-height: 100vh;
     min-height: 100dvh;
     position: relative;
@@ -224,7 +226,7 @@ body {
 .mode-division {
     background: linear-gradient(135deg, #D6ECFF, var(--sky));
     border-color: var(--sky-dark);
-    box-shadow: 0 8px 20px rgba(132, 201, 245, 0.4);
+    box-shadow: 0 4px 12px rgba(132, 201, 245, 0.4);
 }
 
 .mode-icon {
@@ -237,6 +239,7 @@ body {
     justify-content: center;
     background: rgba(255,255,255,0.5);
     border-radius: 16px;
+    -webkit-backdrop-filter: blur(5px);
     backdrop-filter: blur(5px);
 }
 
@@ -308,6 +311,7 @@ body {
     font-weight: 700;
     color: var(--text-light);
     background: rgba(255,255,255,0.6);
+    -webkit-backdrop-filter: blur(10px);
     backdrop-filter: blur(10px);
     cursor: pointer;
     transition: all 0.3s ease;
@@ -1489,11 +1493,16 @@ body {
 /* ===== GLOBAL ECONOMY HEADER ===== */
 .global-stats-header {
     position: fixed;
-    top: 20px;
-    right: 20px;
+    top: calc(10px + env(safe-area-inset-top));
+    right: calc(16px + env(safe-area-inset-right));
     display: flex;
     gap: 12px;
     z-index: 1000;
+}
+
+/* On the game screen the in-flow header already shows coins/combo — hide the global overlay to avoid crowding on phones */
+body[data-screen="screen-game"] .global-stats-header {
+    display: none;
 }
 
 .global-stat {
@@ -1625,7 +1634,7 @@ body {
 /* ===== NOTIFICATIONS ===== */
 .notification-container {
     position: fixed;
-    bottom: 20px;
+    bottom: calc(20px + env(safe-area-inset-bottom));
     left: 50%;
     transform: translateX(-50%);
     display: flex;

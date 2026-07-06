@@ -44,7 +44,8 @@ const CONFIG = {
     dailyGoal: 100,          // correct answers for the daily goal
     dailyBonus: 50,          // coins awarded on completing the daily goal
     multDivDailyLimit: 60,   // per-operand daily coin cap for ×/÷ (anti-abuse)
-    saveDebounceMs: 2000     // coalesce Firebase writes within this window
+    saveDebounceMs: 2000,    // coalesce Firebase writes within this window
+    historyCap: 400          // keep only the most recent N sessions (Firestore doc size)
 };
 
 // Per-mode metadata: label (UI/history), calendar color, and coin reward per correct answer.
@@ -170,6 +171,10 @@ function saveSession(mode, difficultyLabel, correct, total) {
         timestamp: now.getTime(),
         time: now.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' }),
     });
+    // Keep the document small: retain only the most recent sessions
+    if (history.length > CONFIG.historyCap) {
+        history.splice(0, history.length - CONFIG.historyCap);
+    }
     state.history = history;
     saveGame(true);
 }
@@ -283,6 +288,7 @@ function showScreen(screenId) {
     document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
     const screen = document.getElementById(screenId);
     screen.classList.add('active');
+    document.body.dataset.screen = screenId; // lets CSS target the active screen (e.g. hide global header in-game)
     screen.style.animation = 'none';
     screen.offsetHeight;
     screen.style.animation = '';
