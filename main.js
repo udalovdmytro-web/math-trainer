@@ -11,9 +11,10 @@ const state = {
     answered: false,
     numpadValue: '',
     sessionCorrect: 0,
-    // Multiplication specifics
+    // Multiplication / division specifics
     minA: 2,
     maxA: 4,
+    factors: null,     // explicit set of operands, e.g. [4,6,7] (mixed); null → use minA..maxA range
     // Crossing tens mode
     crossingTens: false,
     crossingStep: 0,
@@ -347,7 +348,12 @@ function showSubMenu(mode) {
                 { emoji: '🐥', label: 'На 3', desc: 'Множення на 3', minA: 3, maxA: 3, reward: 1 },
                 { emoji: '🦆', label: 'На 4', desc: 'Множення на 4', minA: 4, maxA: 4, reward: 1 },
                 { emoji: '🦉', label: 'На 5', desc: 'Множення на 5', minA: 5, maxA: 5, reward: 1 },
-                { emoji: '🦋', label: 'Вся таблиця (2-5)', desc: 'Вся таблиця', minA: 2, maxA: 5, reward: 1 },
+                { emoji: '🐝', label: 'На 6', desc: 'Множення на 6', minA: 6, maxA: 6, reward: 1 },
+                { emoji: '🦖', label: 'На 7', desc: 'Множення на 7', minA: 7, maxA: 7, reward: 1 },
+                { emoji: '🐙', label: 'На 8', desc: 'Множення на 8', minA: 8, maxA: 8, reward: 1 },
+                { emoji: '🦁', label: 'На 9', desc: 'Множення на 9', minA: 9, maxA: 9, reward: 1 },
+                { emoji: '🎲', label: 'Мікс 4·6·7', desc: 'На 4, 6 і 7 упереміш', factors: [4, 6, 7], reward: 1 },
+                { emoji: '🦋', label: 'Вся таблиця (2-9)', desc: 'Вся таблиця', minA: 2, maxA: 9, reward: 1 },
             ]
         },
         division: {
@@ -358,7 +364,11 @@ function showSubMenu(mode) {
                 { emoji: '🐥', label: 'На 3', desc: 'Ділення на 3', minA: 3, maxA: 3, reward: 2 },
                 { emoji: '🦆', label: 'На 4', desc: 'Ділення на 4', minA: 4, maxA: 4, reward: 2 },
                 { emoji: '🦉', label: 'На 5', desc: 'Ділення на 5', minA: 5, maxA: 5, reward: 2 },
-                { emoji: '🦋', label: 'Вся таблиця (2-5)', desc: 'Вся таблиця', minA: 2, maxA: 5, reward: 2 },
+                { emoji: '🐝', label: 'На 6', desc: 'Ділення на 6', minA: 6, maxA: 6, reward: 2 },
+                { emoji: '🦖', label: 'На 7', desc: 'Ділення на 7', minA: 7, maxA: 7, reward: 2 },
+                { emoji: '🐙', label: 'На 8', desc: 'Ділення на 8', minA: 8, maxA: 8, reward: 2 },
+                { emoji: '🦁', label: 'На 9', desc: 'Ділення на 9', minA: 9, maxA: 9, reward: 2 },
+                { emoji: '🦋', label: 'Вся таблиця (2-9)', desc: 'Вся таблиця', minA: 2, maxA: 9, reward: 2 },
             ]
         },
         logic: {
@@ -389,6 +399,7 @@ function showSubMenu(mode) {
             state.difficultyLabel = opt.label;
             state.crossingTens = opt.crossing || false;
             if (mode === 'multiplication' || mode === 'division') {
+                state.factors = opt.factors || null;
                 state.minA = opt.minA || 2;
                 state.maxA = opt.maxA || 4;
             } else if (mode === 'logic') {
@@ -505,7 +516,12 @@ function pickWeightedFact(pool) {
 // Build the candidate pool for the current multiplication/division difficulty.
 function buildFactPool(mode) {
     const pool = [];
-    for (let x = state.minA; x <= state.maxA; x++) {
+    // Explicit factor set (e.g. mixed 4·6·7) takes priority over the minA..maxA range
+    let factors = (state.factors && state.factors.length) ? state.factors : [];
+    if (!factors.length) {
+        for (let x = state.minA; x <= state.maxA; x++) factors.push(x);
+    }
+    for (const x of factors) {
         for (let q = 2; q <= 10; q++) {
             if (mode === 'multiplication') {
                 pool.push({ a: x, b: q, answer: x * q, factKey: `m:${x}x${q}` });
