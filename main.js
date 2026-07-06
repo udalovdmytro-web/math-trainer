@@ -31,8 +31,33 @@ const state = {
     achievements: [],
     blitzRecord: 0,
     history: [],
-    problemStartTime: 0
+    problemStartTime: 0,
+    // Adaptivity (Phase 2): per-fact stats { seen, correct, timeMs, lastResult, lastTs }
+    stats: {},
+    lastFactKey: null
 };
+
+// ===== CONFIG (single source of truth) =====
+const CONFIG = {
+    totalRounds: 20,
+    dailyGoal: 100,          // correct answers for the daily goal
+    dailyBonus: 50,          // coins awarded on completing the daily goal
+    multDivDailyLimit: 60,   // per-operand daily coin cap for ×/÷ (anti-abuse)
+    saveDebounceMs: 2000     // coalesce Firebase writes within this window
+};
+
+// Per-mode metadata: label (UI/history), calendar color, and coin reward per correct answer.
+// crossingReward applies to the step-by-step "через десяток" variant of add/sub.
+const MODE_META = {
+    addition:       { icon: '➕',  label: 'Додавання',   color: 'var(--pink-light)', reward: 1, crossingReward: 2 },
+    subtraction:    { icon: '➖',  label: 'Віднімання',  color: 'var(--lavender)',   reward: 2, crossingReward: 3 },
+    multiplication: { icon: '✖️', label: 'Множення',    color: 'var(--mint)',       reward: 1 },
+    division:       { icon: '➗',  label: 'Ділення',     color: 'var(--sky)',        reward: 2 },
+    logic:          { icon: '🧩', label: 'Логіка',      color: 'var(--peach)',      reward: 3 },
+    blitz:          { icon: '⏱️', label: 'Бліц-Турнір', color: 'var(--yellow)',     reward: 1 }
+};
+
+function modeLabel(mode) { return (MODE_META[mode] && MODE_META[mode].label) || mode; }
 
 // ===== FIREBASE & HISTORY =====
 async function saveToFirebase() {
@@ -45,11 +70,26 @@ async function saveToFirebase() {
             daily: state.daily,
             achievements: state.achievements,
             blitzRecord: state.blitzRecord,
-            history: state.history
+            history: state.history,
+            stats: state.stats
         });
     } catch (e) {
         console.error("Ошибка сохранения в Firebase: ", e);
     }
+}
+
+// Debounced saver: coalesces the many per-answer writes into one every few seconds.
+// The scheduled write reads live state at fire time, so it always persists the latest.
+// Pass immediate=true for money/session-boundary events that must not be lost.
+let saveTimer = null;
+function saveGame(immediate = false) {
+    if (immediate) {
+        if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
+        saveToFirebase();
+        return;
+    }
+    if (saveTimer) return; // a write is already scheduled; it will capture latest state
+    saveTimer = setTimeout(() => { saveTimer = null; saveToFirebase(); }, CONFIG.saveDebounceMs);
 }
 
 function updateEconomyUI() {
@@ -85,7 +125,7 @@ function updateDailyUI() {
     if (dailyStreak) dailyStreak.textContent = state.daily.streak;
     
     if (dailyFill) {
-        let pct = Math.min(100, Math.round((state.daily.count / 100) * 100));
+        let pct = Math.min(100, Math.round((state.daily.count / CONFIG.dailyGoal) * 100));
         dailyFill.style.width = pct + '%';
         if (pct === 100) {
             dailyFill.style.background = 'var(--gold)';
@@ -102,13 +142,13 @@ function checkDailyReset() {
         yesterday.setDate(yesterday.getDate() - 1);
         const yesterdayStr = yesterday.toLocaleDateString('en-CA');
         
-        if (state.daily.date !== yesterdayStr || state.daily.count < 100) {
+        if (state.daily.date !== yesterdayStr || state.daily.count < CONFIG.dailyGoal) {
             state.daily.streak = 0;
         }
         state.daily.count = 0;
         state.daily.date = today;
         state.daily.multLimits = {};
-        saveToFirebase();
+        saveGame(true);
     }
     updateDailyUI();
 }
@@ -130,7 +170,7 @@ function saveSession(mode, difficultyLabel, correct, total) {
         time: now.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' }),
     });
     state.history = history;
-    saveToFirebase();
+    saveGame(true);
 }
 
 function getHistoryForDate(dateStr) {
@@ -169,6 +209,7 @@ async function handleLogin() {
             state.achievements = data.achievements || [];
             state.blitzRecord = data.blitzRecord || 0;
             state.history = data.history || [];
+            state.stats = data.stats || {};
         } else {
             // New user
             state.coins = 0;
@@ -178,7 +219,8 @@ async function handleLogin() {
             state.achievements = [];
             state.blitzRecord = 0;
             state.history = [];
-            await docRef.set({ coins: 0, combo: 0, robloxTime: 0, daily: state.daily, achievements: [], blitzRecord: 0, history: [] });
+            state.stats = {};
+            await docRef.set({ coins: 0, combo: 0, robloxTime: 0, daily: state.daily, achievements: [], blitzRecord: 0, history: [], stats: {} });
         }
         
         state.userId = pin;
@@ -219,6 +261,7 @@ function showNotification(title, desc, emoji) {
 }
 
 function handleLogout() {
+    saveGame(true); // flush any pending progress before switching profile
     localStorage.removeItem('savedPin');
     state.userId = null;
     showScreen('screen-login');
@@ -307,6 +350,17 @@ function showSubMenu(mode) {
                 { emoji: '🦋', label: 'Вся таблиця (2-5)', desc: 'Вся таблиця', minA: 2, maxA: 5, reward: 1 },
             ]
         },
+        division: {
+            icon: '➗',
+            title: 'Ділення',
+            options: [
+                { emoji: '🐣', label: 'На 2', desc: 'Ділення на 2', minA: 2, maxA: 2, reward: 2 },
+                { emoji: '🐥', label: 'На 3', desc: 'Ділення на 3', minA: 3, maxA: 3, reward: 2 },
+                { emoji: '🦆', label: 'На 4', desc: 'Ділення на 4', minA: 4, maxA: 4, reward: 2 },
+                { emoji: '🦉', label: 'На 5', desc: 'Ділення на 5', minA: 5, maxA: 5, reward: 2 },
+                { emoji: '🦋', label: 'Вся таблиця (2-5)', desc: 'Вся таблиця', minA: 2, maxA: 5, reward: 2 },
+            ]
+        },
         logic: {
             icon: '🧩',
             title: 'Логіка',
@@ -334,7 +388,7 @@ function showSubMenu(mode) {
         card.onclick = () => {
             state.difficultyLabel = opt.label;
             state.crossingTens = opt.crossing || false;
-            if (mode === 'multiplication') {
+            if (mode === 'multiplication' || mode === 'division') {
                 state.minA = opt.minA || 2;
                 state.maxA = opt.maxA || 4;
             } else if (mode === 'logic') {
@@ -390,6 +444,79 @@ function endBlitzMode() {
     showCompletion();
 }
 
+// ===== ADAPTIVITY (Phase 2) =====
+// A "fact" is a specific example (e.g. 3×7). We track how well it's known and
+// bias generation toward weak facts (spaced-repetition style). Invisible to the child.
+
+function factKeyFor(mode, a, b, opSymbol) {
+    switch (opSymbol) {
+        case '+': return `a:${a}+${b}`;
+        case '−': return `s:${a}-${b}`;
+        case '×': return `m:${a}x${b}`;
+        case '÷': return `d:${a}:${b}`;
+    }
+    if (mode === 'logic') return `l:${state.logicMode || 'eq'}`;
+    return null;
+}
+
+function recordStat(factKey, correct, timeMs) {
+    if (!factKey) return;
+    if (!state.stats) state.stats = {};
+    const s = state.stats[factKey] || { seen: 0, correct: 0, timeMs: 0, lastResult: 0, lastTs: 0 };
+    s.seen++;
+    if (correct) s.correct++;
+    s.timeMs += Math.max(0, Math.min(timeMs || 0, 60000)); // clamp outliers (afk etc.)
+    s.lastResult = correct ? 1 : 0;
+    s.lastTs = Date.now();
+    state.stats[factKey] = s;
+}
+
+// Higher weight = fact needs more practice.
+function factWeight(key) {
+    const s = state.stats && state.stats[key];
+    if (!s || s.seen === 0) return 2.5;              // unseen: introduce, but don't flood
+    const acc = s.correct / s.seen;
+    const avg = s.timeMs / s.seen;
+    if (s.seen >= 4 && acc >= 0.9 && avg < 3000) return 0.25; // mastered: show rarely
+    let w = 1;
+    w += (1 - acc) * 4;                              // errors dominate
+    if (avg > 4000) w += 1;                          // slow → needs reps
+    if (s.lastResult === 0) w += 1.5;                // just missed it
+    return Math.max(0.25, w);
+}
+
+// Weighted-random pick over a pool of {a, b, answer, factKey}.
+function pickWeightedFact(pool) {
+    let total = 0;
+    const weights = pool.map(c => {
+        let w = factWeight(c.factKey);
+        if (c.factKey === state.lastFactKey && pool.length > 1) w *= 0.15; // avoid immediate repeat
+        total += w;
+        return w;
+    });
+    let r = Math.random() * total;
+    for (let i = 0; i < pool.length; i++) {
+        r -= weights[i];
+        if (r <= 0) return pool[i];
+    }
+    return pool[pool.length - 1];
+}
+
+// Build the candidate pool for the current multiplication/division difficulty.
+function buildFactPool(mode) {
+    const pool = [];
+    for (let x = state.minA; x <= state.maxA; x++) {
+        for (let q = 2; q <= 10; q++) {
+            if (mode === 'multiplication') {
+                pool.push({ a: x, b: q, answer: x * q, factKey: `m:${x}x${q}` });
+            } else { // division: x is divisor, q is quotient, dividend = x*q
+                pool.push({ a: x * q, b: x, answer: q, factKey: `d:${x * q}:${x}` });
+            }
+        }
+    }
+    return pool;
+}
+
 // ===== PROBLEM GENERATION =====
 function generateProblem() {
     let a, b, answer, opSymbol;
@@ -407,7 +534,9 @@ function generateProblem() {
             answer = a - b;
             opSymbol = '−';
         }
-        return { a, b, answer, opSymbol };
+        const blitzKey = factKeyFor('blitz', a, b, opSymbol);
+        state.lastFactKey = blitzKey;
+        return { a, b, answer, opSymbol, factKey: blitzKey };
     }
 
     switch (state.mode) {
@@ -427,13 +556,21 @@ function generateProblem() {
             opSymbol = '−';
             break;
 
-        case 'multiplication':
-            // a × b = ?, no multiplying by 1
-            a = randomInt(state.minA, state.maxA);
-            b = randomInt(2, 10);
-            answer = a * b;
+        case 'multiplication': {
+            // Adaptive: pick a fact weighted toward what's still weak
+            const pick = pickWeightedFact(buildFactPool('multiplication'));
+            a = pick.a; b = pick.b; answer = pick.answer;
             opSymbol = '×';
             break;
+        }
+
+        case 'division': {
+            // Adaptive: built from a multiplication fact so the answer is whole
+            const pick = pickWeightedFact(buildFactPool('division'));
+            a = pick.a; b = pick.b; answer = pick.answer;
+            opSymbol = '÷';
+            break;
+        }
 
         case 'logic':
             if (state.logicMode === 'equation') {
@@ -460,7 +597,9 @@ function generateProblem() {
             break;
     }
 
-    return { a, b, answer, opSymbol };
+    const factKey = factKeyFor(state.mode, a, b, opSymbol);
+    state.lastFactKey = factKey;
+    return { a, b, answer, opSymbol, factKey };
 }
 
 function randomInt(min, max) {
@@ -653,7 +792,8 @@ function generateCrossingProblem() {
 
         return {
             a, b, answer, opSymbol: '+', crossOp: '+',
-            answers: [10, remainder, answer]
+            answers: [10, remainder, answer],
+            factKey: `a:${a}+${b}`
         };
     } else {
         // subtraction: a > 10, crossing below 10
@@ -668,7 +808,8 @@ function generateCrossingProblem() {
 
         return {
             a, b, answer, opSymbol: '−', crossOp: '−',
-            answers: [10, remainder, answer]
+            answers: [10, remainder, answer],
+            factKey: `s:${a}-${b}`
         };
     }
 }
@@ -767,25 +908,9 @@ function crossingSubmit() {
             // Re-render final state
             renderCrossingSteps();
 
-            // Economy
-            state.combo++;
-            let earned = state.mode === 'subtraction' ? 3 : 2;
-            state.coins += earned;
-
-            if (state.daily && state.daily.count < 100) {
-                state.daily.count++;
-                if (state.daily.count === 100) {
-                    state.daily.streak++;
-                    state.coins += 50;
-                    setTimeout(() => showNotification('Завдання дня виконано!', '+50 монет! Серія: ' + state.daily.streak + ' дн.', '🎯'), 500);
-                }
-                updateDailyUI();
-            }
-
             const timeTaken = Date.now() - state.problemStartTime;
-            if (typeof checkAchievements === 'function') checkAchievements(timeTaken);
-            updateEconomyUI();
-            saveToFirebase();
+            recordStat(state.crossingData && state.crossingData.factKey, true, timeTaken);
+            awardCorrect(timeTaken);
 
             const feedback = document.getElementById('feedback');
             const emojis = ['🎉', '⭐', '🌟', '💫', '✨', '🎊', '💖', '🦄', '🌈', '🎀'];
@@ -825,8 +950,9 @@ function crossingSubmit() {
                 // Final step was wrong — still finish the problem
                 state.answered = true;
                 state.combo = 0;
+                recordStat(state.crossingData && state.crossingData.factKey, false, Date.now() - state.problemStartTime);
                 updateEconomyUI();
-                saveToFirebase();
+                saveGame();
 
                 renderCrossingSteps();
 
@@ -851,57 +977,67 @@ function enableCrossingNumpad(enabled) {
     });
 }
 
+// Shared reward pipeline for a correct answer (both normal and "через десяток" modes).
+// Handles combo, coins (+ ×/÷ anti-abuse), the daily goal/bonus/streak, achievements,
+// the economy UI and persistence. Returns coins earned. Single source of truth.
+function awardCorrect(timeTaken) {
+    state.combo++;
+
+    const meta = MODE_META[state.mode] || {};
+    let earned = state.crossingTens ? (meta.crossingReward || 2) : (meta.reward || 1);
+
+    // Multiplication / division anti-abuse: cap coins per single fixed operand per day
+    if ((state.mode === 'multiplication' || state.mode === 'division') && state.minA === state.maxA) {
+        if (!state.daily.multLimits) state.daily.multLimits = {};
+        const num = state.minA;
+        const key = state.mode === 'division' ? 'd' + num : num; // keep legacy mult key, separate div key
+        if (!state.daily.multLimits[key]) state.daily.multLimits[key] = 0;
+
+        if (state.daily.multLimits[key] >= CONFIG.multDivDailyLimit) {
+            earned = 0; // limit reached
+            if (state.daily.multLimits[key] === CONFIG.multDivDailyLimit) {
+                showNotification('Ліміт вичерпано!', `Ти вже багато розв'язав на ${num}. Обирай інші приклади, щоб отримувати монети.`, '🚫');
+                state.daily.multLimits[key]++; // increment to not show msg again
+            }
+        } else {
+            state.daily.multLimits[key]++;
+        }
+    }
+
+    state.coins += earned;
+
+    // Daily goal → bonus + streak
+    if (state.daily && state.daily.count < CONFIG.dailyGoal) {
+        state.daily.count++;
+        if (state.daily.count === CONFIG.dailyGoal) {
+            state.daily.streak++;
+            state.coins += CONFIG.dailyBonus;
+            setTimeout(() => showNotification('Завдання дня виконано!', `+${CONFIG.dailyBonus} монет! Серія: ${state.daily.streak} дн.`, '🎯'), 500);
+        }
+        updateDailyUI();
+    }
+
+    if (typeof checkAchievements === 'function') checkAchievements(timeTaken);
+    updateEconomyUI();
+    saveGame();
+    return earned;
+}
+
 function handleResult(correct, userAnswer, btnElement) {
     const answerDisplay = document.getElementById('answer-display');
     const feedback = document.getElementById('feedback');
     const problemContainer = document.getElementById('problem-container');
+
+    // Adaptivity: log this attempt against its fact
+    const timeTaken = Date.now() - state.problemStartTime;
+    recordStat(state.currentProblem && state.currentProblem.factKey, correct, timeTaken);
 
     if (correct) {
         state.score++;
         state.sessionCorrect++;
         document.getElementById('score-value').textContent = state.score;
 
-        // Economy
-        state.combo++;
-        let earned = 1;
-        if (state.mode === 'subtraction') earned = 2;
-        if (state.mode === 'logic') earned = 3;
-
-        // Multiplication anti-abuse
-        if (state.mode === 'multiplication' && state.minA === state.maxA) {
-            if (!state.daily.multLimits) state.daily.multLimits = {};
-            const num = state.minA;
-            if (!state.daily.multLimits[num]) state.daily.multLimits[num] = 0;
-            
-            if (state.daily.multLimits[num] >= 60) {
-                earned = 0; // limit reached
-                if (state.daily.multLimits[num] === 60) {
-                    showNotification('Ліміт вичерпано!', `Ти вже багато розв'язав на ${num}. Обирай інші приклади, щоб отримувати монети.`, '🚫');
-                    state.daily.multLimits[num]++; // increment to not show msg again
-                }
-            } else {
-                state.daily.multLimits[num]++;
-            }
-        }
-
-        state.coins += earned;
-        
-        // Daily logic
-        if (state.daily && state.daily.count < 100) {
-            state.daily.count++;
-            if (state.daily.count === 100) {
-                state.daily.streak++;
-                state.coins += 50; 
-                setTimeout(() => showNotification('Завдання дня виконано!', '+50 монет! Серія: ' + state.daily.streak + ' дн.', '🎯'), 500);
-            }
-            updateDailyUI();
-        }
-        
-        const timeTaken = Date.now() - state.problemStartTime;
-        if (typeof checkAchievements === 'function') checkAchievements(timeTaken);
-
-        updateEconomyUI();
-        saveToFirebase();
+        awardCorrect(timeTaken);
 
         answerDisplay.textContent = state.currentProblem.answer;
         answerDisplay.className = 'problem-answer correct';
@@ -929,7 +1065,7 @@ function handleResult(correct, userAnswer, btnElement) {
         // Economy
         state.combo = 0;
         updateEconomyUI();
-        saveToFirebase();
+        saveGame();
 
         answerDisplay.textContent = userAnswer;
         answerDisplay.className = 'problem-answer wrong';
@@ -983,8 +1119,7 @@ function showCompletion() {
     let percent = total > 0 ? Math.round((correct / total) * 100) : 0;
 
     // Save to history
-    const modeLabels = { addition: 'Додавання', subtraction: 'Віднімання', multiplication: 'Множення', blitz: 'Бліц-Турнір', logic: 'Логіка' };
-    saveSession(state.mode, state.difficultyLabel || modeLabels[state.mode], correct, total);
+    saveSession(state.mode, state.difficultyLabel || modeLabel(state.mode), correct, total);
 
     document.getElementById('stat-correct').textContent = correct;
     document.getElementById('stat-total').textContent = total;
@@ -998,7 +1133,7 @@ function showCompletion() {
             completeEmoji.textContent = '🔥';
             subtitle.textContent = `Новий рекорд! Ти перевершив себе (Минулий: ${state.blitzRecord})`;
             state.blitzRecord = correct;
-            saveToFirebase();
+            saveGame(true);
         } else {
             completeEmoji.textContent = '⏱️';
             subtitle.textContent = `Час вийшов! Твій рекорд: ${state.blitzRecord}`;
@@ -1171,25 +1306,14 @@ function showDayDetails(dateStr, dayNum) {
     const list = document.getElementById('day-details-list');
     list.innerHTML = '';
 
-    const modeLabels = {
-        addition: '➕ Додавання',
-        subtraction: '➖ Віднімання',
-        multiplication: '✖️ Множення',
-    };
-
-    const modeColors = {
-        addition: 'var(--pink-light)',
-        subtraction: 'var(--lavender)',
-        multiplication: 'var(--mint)',
-    };
-
     sessions.sort((a, b) => a.timestamp - b.timestamp);
 
     sessions.forEach(session => {
+        const meta = MODE_META[session.mode] || {};
         const percent = Math.round((session.correct / session.total) * 100);
         const item = document.createElement('div');
         item.className = 'day-detail-item';
-        item.style.borderLeftColor = modeColors[session.mode] || 'var(--pink-light)';
+        item.style.borderLeftColor = meta.color || 'var(--pink-light)';
 
         let emoji = '💪';
         if (percent === 100) emoji = '🏆';
@@ -1198,7 +1322,7 @@ function showDayDetails(dateStr, dayNum) {
 
         item.innerHTML = `
             <div class="detail-header">
-                <span class="detail-mode">${modeLabels[session.mode] || session.mode}</span>
+                <span class="detail-mode">${(meta.icon ? meta.icon + ' ' : '') + (meta.label || session.mode)}</span>
                 <span class="detail-time">${session.time || ''}</span>
             </div>
             <div class="detail-body">
@@ -1370,7 +1494,7 @@ function checkAchievements(timeTaken = 999999) {
     });
 
     if (newUnlock) {
-        saveToFirebase();
+        saveGame();
     }
 }
 
@@ -1443,7 +1567,7 @@ function buyRobloxTime(minutes, cost) {
         state.coins -= cost;
         state.robloxTime += minutes;
         updateEconomyUI();
-        saveToFirebase();
+        saveGame(true);
         
         successMsg.style.display = 'block';
         errorMsg.style.display = 'none';
@@ -1484,6 +1608,14 @@ if (!CanvasRenderingContext2D.prototype.roundRect) {
         this.closePath();
     };
 }
+
+// Flush any pending debounced save when the tab is hidden or closed
+window.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden' && saveTimer && state.userId) saveGame(true);
+});
+window.addEventListener('beforeunload', () => {
+    if (saveTimer && state.userId) saveGame(true);
+});
 
 // Start auth flow
 setTimeout(initAuth, 100);

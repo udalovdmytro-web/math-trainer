@@ -221,6 +221,12 @@ body {
     box-shadow: var(--shadow-glow-mint);
 }
 
+.mode-division {
+    background: linear-gradient(135deg, #D6ECFF, var(--sky));
+    border-color: var(--sky-dark);
+    box-shadow: 0 8px 20px rgba(132, 201, 245, 0.4);
+}
+
 .mode-icon {
     font-size: 2.5rem;
     flex-shrink: 0;
@@ -1103,6 +1109,9 @@ body {
 .dot-addition { background: var(--pink); }
 .dot-subtraction { background: var(--lavender-dark); }
 .dot-multiplication { background: var(--mint-dark); }
+.dot-division { background: var(--sky-dark); }
+.dot-logic { background: var(--peach-dark); }
+.dot-blitz { background: var(--gold); }
 
 /* ===== DAY DETAILS ===== */
 .day-details {

@@ -14,5 +14,9 @@ desktop.ini
 .agents/
 GEMINI.md
 
+# Claude Code (local tooling: preview launch config, etc.)
+.claude/
+CLAUDE.md
+
 # Other folders
 Cut the file/
