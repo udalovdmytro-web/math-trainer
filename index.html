@@ -8,7 +8,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="style.css?v=4">
+    <link rel="stylesheet" href="style.css?v=11">
     
     <!-- Firebase App (core) -->
     <script src="https://www.gstatic.com/firebasejs/10.9.0/firebase-app-compat.js"></script>
@@ -392,7 +392,20 @@
         </div>
     </div>
 
-    <script src="firebase-config.js?v=4"></script>
-    <script src="main.js?v=4"></script>
+    <!-- ===== CUSTOM MIX MODAL ===== -->
+    <div id="mix-modal" class="mix-modal" style="display:none;">
+        <div class="mix-modal-content">
+            <h3 class="mix-modal-title" id="mix-modal-title">✖️ Свій мікс</h3>
+            <p class="mix-modal-sub">Обери числа для тренування:</p>
+            <div class="mix-chips" id="mix-chips"></div>
+            <div class="mix-modal-actions">
+                <button class="mix-cancel-btn" onclick="closeMixModal()">Скасувати</button>
+                <button class="mix-start-btn" id="mix-start-btn" onclick="startCustomMix()">Обери числа</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="firebase-config.js?v=11"></script>
+    <script src="main.js?v=11"></script>
 </body>
 </html>

@@ -330,8 +330,7 @@ body {
 }
 
 .submenu-icon {
-    font-size: 3rem;
-    margin-bottom: 8px;
+    display: none; /* redundant with the title — hidden to give cards more room */
 }
 
 .submenu-title {
@@ -341,15 +340,15 @@ body {
 }
 
 .submenu-container {
-    display: flex;
-    flex-direction: column;
-    gap: 14px;
+    display: grid;
+    grid-template-columns: repeat(2, 1fr); /* 2 per row so more options fit without endless scrolling */
+    gap: 12px;
     width: 100%;
-    max-width: 420px;
+    max-width: 440px;
 }
 
 .difficulty-card {
-    padding: 20px 24px;
+    padding: 14px 12px;
     border-radius: var(--radius);
     cursor: pointer;
     background: var(--white);
@@ -370,23 +369,36 @@ body {
 }
 
 .difficulty-card .diff-emoji {
-    font-size: 2rem;
+    font-size: 1.7rem;
     display: block;
-    margin-bottom: 6px;
+    margin-bottom: 2px;
 }
 
 .difficulty-card .diff-label {
-    font-size: 1.3rem;
+    font-size: 1.15rem;
     font-weight: 800;
     color: var(--text);
 }
 
 .difficulty-card .diff-desc {
-    font-size: 0.9rem;
+    font-size: 0.75rem;
     color: var(--text-light);
     font-weight: 600;
     margin-top: 2px;
+    line-height: 1.2;
 }
+
+/* Dense submenu (×/÷ with 10 options): tighter cards + header, drop the redundant
+   description so every option fits on a phone screen without scrolling */
+.submenu-container.dense { gap: 10px; }
+.submenu-container.dense .difficulty-card { padding: 10px 8px; }
+.submenu-container.dense .diff-emoji { font-size: 1.65rem; margin-bottom: 1px; }
+.submenu-container.dense .diff-label { font-size: 1.12rem; }
+.submenu-container.dense .diff-desc { display: none; }
+.submenu-container.dense .diff-reward { margin-top: 4px; font-size: 0.82rem; padding: 2px 8px; }
+
+#screen-submenu.dense .submenu-header { margin: 8px 0 14px; }
+#screen-submenu.dense .submenu-title { font-size: 1.6rem; }
 
 /* ===== GAME HEADER ===== */
 .game-header {
@@ -903,15 +915,10 @@ body {
     }
     
     .submenu-container {
-        flex-direction: row;
-        max-width: 600px;
-        justify-content: center;
+        grid-template-columns: repeat(3, 1fr);
+        max-width: 640px;
     }
-    
-    .difficulty-card {
-        flex: 1;
-    }
-    
+
     .choices-container {
         gap: 16px;
     }
@@ -1853,12 +1860,107 @@ body[data-screen="screen-game"] .global-stats-header {
 }
 
 .diff-reward {
-    margin-top: 8px;
-    font-size: 1.1rem;
+    margin-top: 6px;
+    font-size: 0.95rem;
     font-weight: 900;
     color: var(--gold);
     background: var(--gold-light);
-    padding: 4px 12px;
+    padding: 3px 10px;
     border-radius: 12px;
     display: inline-block;
+}
+
+/* ===== CUSTOM MIX MODAL ===== */
+.mix-modal {
+    position: fixed;
+    inset: 0;
+    background: rgba(74, 74, 106, 0.45);
+    -webkit-backdrop-filter: blur(4px);
+    backdrop-filter: blur(4px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 2000;
+    padding: calc(20px + env(safe-area-inset-top)) 20px calc(20px + env(safe-area-inset-bottom));
+}
+
+.mix-modal-content {
+    background: var(--white);
+    border-radius: var(--radius);
+    padding: 24px;
+    width: 100%;
+    max-width: 360px;
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.25);
+    text-align: center;
+    animation: popIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.mix-modal-title {
+    font-size: 1.5rem;
+    font-weight: 900;
+    color: var(--text);
+}
+
+.mix-modal-sub {
+    color: var(--text-light);
+    font-weight: 600;
+    margin: 8px 0 18px;
+}
+
+.mix-chips {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 10px;
+}
+
+.mix-chip {
+    padding: 14px 0;
+    border-radius: 14px;
+    border: 3px solid var(--pink-light);
+    background: var(--white);
+    font-family: 'Nunito', sans-serif;
+    font-size: 1.4rem;
+    font-weight: 800;
+    color: var(--text);
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.mix-chip.active {
+    background: var(--mint);
+    border-color: var(--mint-dark);
+    transform: scale(1.06);
+}
+
+.mix-modal-actions {
+    display: flex;
+    gap: 12px;
+    margin-top: 20px;
+}
+
+.mix-cancel-btn, .mix-start-btn {
+    flex: 1;
+    padding: 14px;
+    border: none;
+    border-radius: 16px;
+    font-family: 'Nunito', sans-serif;
+    font-size: 1.1rem;
+    font-weight: 800;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.mix-cancel-btn {
+    background: rgba(74, 74, 106, 0.08);
+    color: var(--text-light);
+}
+
+.mix-start-btn {
+    background: linear-gradient(135deg, var(--pink), var(--lavender-dark));
+    color: #fff;
+}
+
+.mix-start-btn:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
 }

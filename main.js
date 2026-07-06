@@ -15,6 +15,8 @@ const state = {
     minA: 2,
     maxA: 4,
     factors: null,     // explicit set of operands, e.g. [4,6,7] (mixed); null → use minA..maxA range
+    mixMode: null,     // which mode opened the custom-mix picker
+    mixSelected: [],   // numbers the child chose for the custom mix
     // Crossing tens mode
     crossingTens: false,
     crossingStep: 0,
@@ -297,6 +299,7 @@ function showScreen(screenId) {
     const screen = document.getElementById(screenId);
     screen.classList.add('active');
     document.body.dataset.screen = screenId; // lets CSS target the active screen (e.g. hide global header in-game)
+    window.scrollTo(0, 0); // always open a screen at the top (back button / title visible)
     screen.style.animation = 'none';
     screen.offsetHeight;
     screen.style.animation = '';
@@ -358,31 +361,32 @@ function showSubMenu(mode) {
             icon: '✖️',
             title: 'Множення',
             options: [
-                { emoji: '🐣', label: 'На 2', desc: 'Множення на 2', minA: 2, maxA: 2, reward: 1 },
-                { emoji: '🐥', label: 'На 3', desc: 'Множення на 3', minA: 3, maxA: 3, reward: 1 },
-                { emoji: '🦆', label: 'На 4', desc: 'Множення на 4', minA: 4, maxA: 4, reward: 1 },
-                { emoji: '🦉', label: 'На 5', desc: 'Множення на 5', minA: 5, maxA: 5, reward: 1 },
-                { emoji: '🐝', label: 'На 6', desc: 'Множення на 6', minA: 6, maxA: 6, reward: 1 },
-                { emoji: '🦖', label: 'На 7', desc: 'Множення на 7', minA: 7, maxA: 7, reward: 1 },
-                { emoji: '🐙', label: 'На 8', desc: 'Множення на 8', minA: 8, maxA: 8, reward: 1 },
+                { emoji: '🦋', label: 'Вся таблиця', desc: '2–9', minA: 2, maxA: 9, reward: 1 },
+                { emoji: '🎛️', label: 'Свій мікс', desc: 'Обери числа', custom: true, reward: 1 },
                 { emoji: '🦁', label: 'На 9', desc: 'Множення на 9', minA: 9, maxA: 9, reward: 1 },
-                { emoji: '🎲', label: 'Мікс 4·6·7', desc: 'На 4, 6 і 7 упереміш', factors: [4, 6, 7], reward: 1 },
-                { emoji: '🦋', label: 'Вся таблиця (2-9)', desc: 'Вся таблиця', minA: 2, maxA: 9, reward: 1 },
+                { emoji: '🐙', label: 'На 8', desc: 'Множення на 8', minA: 8, maxA: 8, reward: 1 },
+                { emoji: '🦖', label: 'На 7', desc: 'Множення на 7', minA: 7, maxA: 7, reward: 1 },
+                { emoji: '🐝', label: 'На 6', desc: 'Множення на 6', minA: 6, maxA: 6, reward: 1 },
+                { emoji: '🦉', label: 'На 5', desc: 'Множення на 5', minA: 5, maxA: 5, reward: 1 },
+                { emoji: '🦆', label: 'На 4', desc: 'Множення на 4', minA: 4, maxA: 4, reward: 1 },
+                { emoji: '🐥', label: 'На 3', desc: 'Множення на 3', minA: 3, maxA: 3, reward: 1 },
+                { emoji: '🐣', label: 'На 2', desc: 'Множення на 2', minA: 2, maxA: 2, reward: 1 },
             ]
         },
         division: {
             icon: '➗',
             title: 'Ділення',
             options: [
-                { emoji: '🐣', label: 'На 2', desc: 'Ділення на 2', minA: 2, maxA: 2, reward: 2 },
-                { emoji: '🐥', label: 'На 3', desc: 'Ділення на 3', minA: 3, maxA: 3, reward: 2 },
-                { emoji: '🦆', label: 'На 4', desc: 'Ділення на 4', minA: 4, maxA: 4, reward: 2 },
-                { emoji: '🦉', label: 'На 5', desc: 'Ділення на 5', minA: 5, maxA: 5, reward: 2 },
-                { emoji: '🐝', label: 'На 6', desc: 'Ділення на 6', minA: 6, maxA: 6, reward: 2 },
-                { emoji: '🦖', label: 'На 7', desc: 'Ділення на 7', minA: 7, maxA: 7, reward: 2 },
-                { emoji: '🐙', label: 'На 8', desc: 'Ділення на 8', minA: 8, maxA: 8, reward: 2 },
+                { emoji: '🦋', label: 'Вся таблиця', desc: '2–9', minA: 2, maxA: 9, reward: 2 },
+                { emoji: '🎛️', label: 'Свій мікс', desc: 'Обери числа', custom: true, reward: 2 },
                 { emoji: '🦁', label: 'На 9', desc: 'Ділення на 9', minA: 9, maxA: 9, reward: 2 },
-                { emoji: '🦋', label: 'Вся таблиця (2-9)', desc: 'Вся таблиця', minA: 2, maxA: 9, reward: 2 },
+                { emoji: '🐙', label: 'На 8', desc: 'Ділення на 8', minA: 8, maxA: 8, reward: 2 },
+                { emoji: '🦖', label: 'На 7', desc: 'Ділення на 7', minA: 7, maxA: 7, reward: 2 },
+                { emoji: '🐝', label: 'На 6', desc: 'Ділення на 6', minA: 6, maxA: 6, reward: 2 },
+                { emoji: '🦉', label: 'На 5', desc: 'Ділення на 5', minA: 5, maxA: 5, reward: 2 },
+                { emoji: '🦆', label: 'На 4', desc: 'Ділення на 4', minA: 4, maxA: 4, reward: 2 },
+                { emoji: '🐥', label: 'На 3', desc: 'Ділення на 3', minA: 3, maxA: 3, reward: 2 },
+                { emoji: '🐣', label: 'На 2', desc: 'Ділення на 2', minA: 2, maxA: 2, reward: 2 },
             ]
         },
         logic: {
@@ -399,10 +403,15 @@ function showSubMenu(mode) {
     submenuIcon.textContent = config.icon;
     submenuTitle.textContent = config.title;
 
+    // Dense layout for long lists (×/÷) so every option fits on screen without scrolling
+    const dense = config.options.length > 6;
+    submenuContainer.classList.toggle('dense', dense);
+    document.getElementById('screen-submenu').classList.toggle('dense', dense);
+
     config.options.forEach((opt, i) => {
         const card = document.createElement('div');
         card.className = 'difficulty-card slide-up';
-        card.style.animationDelay = `${i * 0.1}s`;
+        card.style.animationDelay = `${i * 0.05}s`;
         card.innerHTML = `
             <span class="diff-emoji">${opt.emoji}</span>
             <div class="diff-label">${opt.label}</div>
@@ -410,6 +419,7 @@ function showSubMenu(mode) {
             <div class="diff-reward">+${opt.reward} 💰</div>
         `;
         card.onclick = () => {
+            if (opt.custom) { openMixModal(mode); return; } // let the child pick the numbers
             state.difficultyLabel = opt.label;
             state.crossingTens = opt.crossing || false;
             if (mode === 'multiplication' || mode === 'division') {
@@ -427,6 +437,56 @@ function showSubMenu(mode) {
     });
 
     showScreen('screen-submenu');
+}
+
+// ===== CUSTOM MIX (child picks which numbers to drill) =====
+function openMixModal(mode) {
+    state.mixMode = mode; // 'multiplication' | 'division'
+    if (!state.mixSelected) state.mixSelected = [];
+    const chips = document.getElementById('mix-chips');
+    chips.innerHTML = '';
+    for (let n = 2; n <= 9; n++) {
+        const chip = document.createElement('button');
+        const active = state.mixSelected.includes(n);
+        chip.className = 'mix-chip' + (active ? ' active' : '');
+        chip.textContent = n;
+        chip.onclick = () => toggleMixChip(n, chip);
+        chips.appendChild(chip);
+    }
+    document.getElementById('mix-modal-title').textContent =
+        (mode === 'division' ? '➗' : '✖️') + ' Свій мікс';
+    updateMixStartBtn();
+    document.getElementById('mix-modal').style.display = 'flex';
+}
+
+function toggleMixChip(n, chip) {
+    if (!state.mixSelected) state.mixSelected = [];
+    const i = state.mixSelected.indexOf(n);
+    if (i === -1) { state.mixSelected.push(n); chip.classList.add('active'); }
+    else { state.mixSelected.splice(i, 1); chip.classList.remove('active'); }
+    updateMixStartBtn();
+}
+
+function updateMixStartBtn() {
+    const btn = document.getElementById('mix-start-btn');
+    const n = (state.mixSelected || []).length;
+    btn.disabled = n === 0;
+    btn.textContent = n === 0 ? 'Обери числа' : `Почати (${n})`;
+}
+
+function closeMixModal() {
+    document.getElementById('mix-modal').style.display = 'none';
+}
+
+function startCustomMix() {
+    const factors = (state.mixSelected || []).slice().sort((a, b) => a - b);
+    if (!factors.length) return;
+    state.mode = state.mixMode;
+    state.factors = factors;
+    state.crossingTens = false;
+    state.difficultyLabel = 'Мікс ' + factors.join('·');
+    closeMixModal();
+    startGame();
 }
 
 // ===== BLITZ MODE =====
