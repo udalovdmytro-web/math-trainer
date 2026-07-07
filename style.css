@@ -300,6 +300,14 @@ body {
     box-shadow: var(--shadow-sm);
 }
 
+.toggle-btn.locked,
+.toggle-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    background: transparent;
+    box-shadow: none;
+}
+
 /* ===== BACK BUTTON ===== */
 .back-btn {
     align-self: flex-start;

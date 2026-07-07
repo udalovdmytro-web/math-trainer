@@ -30,7 +30,7 @@ const state = {
     coins: 0,
     combo: 0,
     robloxTime: 0,
-    daily: { date: '', count: 0, streak: 0, multLimits: {} },
+    daily: { date: '', count: 0, streak: 0, multLimits: {}, choicesUsed: 0 },
     achievements: [],
     blitzRecord: 0,
     history: [],
@@ -45,7 +45,8 @@ const CONFIG = {
     totalRounds: 20,
     dailyGoal: 100,          // correct answers for the daily goal
     dailyBonus: 50,          // coins awarded on completing the daily goal
-    multDivDailyLimit: 60,   // per-operand daily coin cap for ×/÷ (anti-abuse)
+    easyMultDailyLimit: 1,   // ×2 / ×5 dedicated drills award coins only this many times per day (too easy to farm)
+    choicesPerDay: 1,        // multiple-choice ("Варіанти") sessions allowed per day; then typing only
     saveDebounceMs: 2000,    // coalesce Firebase writes within this window
     historyCap: 400,         // keep only the most recent N sessions (Firestore doc size)
     // Delay (ms) after an answer before the next problem appears — tune the pacing here
@@ -160,6 +161,7 @@ function checkDailyReset() {
         state.daily.count = 0;
         state.daily.date = today;
         state.daily.multLimits = {};
+        state.daily.choicesUsed = 0;
         saveGame(true);
     }
     updateDailyUI();
@@ -220,7 +222,7 @@ async function handleLogin() {
             state.coins = data.coins || 0;
             state.combo = data.combo || 0;
             state.robloxTime = data.robloxTime || data.robux || 0;
-            state.daily = data.daily || { date: '', count: 0, streak: 0, multLimits: {} };
+            state.daily = data.daily || { date: '', count: 0, streak: 0, multLimits: {}, choicesUsed: 0 };
             if (!state.daily.multLimits) state.daily.multLimits = {};
             state.achievements = data.achievements || [];
             state.blitzRecord = data.blitzRecord || 0;
@@ -231,7 +233,7 @@ async function handleLogin() {
             state.coins = 0;
             state.combo = 0;
             state.robloxTime = 0;
-            state.daily = { date: '', count: 0, streak: 0, multLimits: {} };
+            state.daily = { date: '', count: 0, streak: 0, multLimits: {}, choicesUsed: 0 };
             state.achievements = [];
             state.blitzRecord = 0;
             state.history = [];
@@ -321,14 +323,35 @@ function goToMenu() {
     }
     document.getElementById('crossing-container').style.display = 'none';
     document.getElementById('problem-container').style.display = '';
+    refreshInputModeLock();
     showScreen('screen-menu');
 }
 
 // ===== INPUT MODE =====
+function choicesLockedToday() {
+    return ((state.daily && state.daily.choicesUsed) || 0) >= CONFIG.choicesPerDay;
+}
+
 function setInputMode(mode) {
+    if (mode === 'choices' && choicesLockedToday()) {
+        showNotification('Варіанти на сьогодні все 😊', 'Варіанти можна раз на день. Далі вводь відповідь сам 💪', '⌨️');
+        return;
+    }
     state.inputMode = mode;
     document.getElementById('toggle-choices').classList.toggle('active', mode === 'choices');
     document.getElementById('toggle-numpad').classList.toggle('active', mode === 'numpad');
+}
+
+// Reflect the "choices once per day" limit on the menu toggle (called when entering the menu)
+function refreshInputModeLock() {
+    const locked = choicesLockedToday();
+    const choicesBtn = document.getElementById('toggle-choices');
+    if (choicesBtn) {
+        choicesBtn.disabled = locked;
+        choicesBtn.classList.toggle('locked', locked);
+        choicesBtn.innerHTML = locked ? '🔒 Варіанти' : '🔘 Варіанти';
+    }
+    if (locked && state.inputMode === 'choices') setInputMode('numpad');
 }
 
 // ===== SUB-MENU =====
@@ -495,9 +518,10 @@ let blitzSeconds = 60;
 
 function startBlitzMode() {
     state.mode = 'blitz';
+    enforceChoicesLimit();
     state.score = 0;
     state.sessionCorrect = 0;
-    state.round = 0; 
+    state.round = 0;
     state.difficultyLabel = 'Бліц';
     blitzSeconds = 60;
 
@@ -751,7 +775,20 @@ function shuffleArray(arr) {
 }
 
 // ===== GAME FLOW =====
+// One multiple-choice session per day, then typing only. Consumes the daily allowance
+// when a choices game starts (also covers "Ще раз!" / blitz, which bypass the menu).
+function enforceChoicesLimit() {
+    if (state.inputMode !== 'choices') return;
+    if (choicesLockedToday()) {
+        setInputMode('numpad');
+        return;
+    }
+    state.daily.choicesUsed = ((state.daily && state.daily.choicesUsed) || 0) + 1;
+    saveGame();
+}
+
 function startGame() {
+    enforceChoicesLimit();
     state.score = 0;
     state.round = 0;
     state.sessionCorrect = 0;
@@ -1095,21 +1132,19 @@ function awardCorrect(timeTaken) {
     const meta = MODE_META[state.mode] || {};
     let earned = state.crossingTens ? (meta.crossingReward || 2) : (meta.reward || 1);
 
-    // Multiplication / division anti-abuse: cap coins per single fixed operand per day
-    if ((state.mode === 'multiplication' || state.mode === 'division') && state.minA === state.maxA) {
+    // Anti-farming: the trivial ×2 and ×5 dedicated drills award coins only once per day
+    if (state.mode === 'multiplication' && state.minA === state.maxA && (state.minA === 2 || state.minA === 5)) {
         if (!state.daily.multLimits) state.daily.multLimits = {};
-        const num = state.minA;
-        const key = state.mode === 'division' ? 'd' + num : num; // keep legacy mult key, separate div key
-        if (!state.daily.multLimits[key]) state.daily.multLimits[key] = 0;
-
-        if (state.daily.multLimits[key] >= CONFIG.multDivDailyLimit) {
-            earned = 0; // limit reached
-            if (state.daily.multLimits[key] === CONFIG.multDivDailyLimit) {
-                showNotification('Ліміт вичерпано!', `Ти вже багато розв'язав на ${num}. Обирай інші приклади, щоб отримувати монети.`, '🚫');
-                state.daily.multLimits[key]++; // increment to not show msg again
+        const key = 'm' + state.minA;
+        const used = state.daily.multLimits[key] || 0;
+        if (used >= CONFIG.easyMultDailyLimit) {
+            earned = 0; // already claimed today
+            if (used === CONFIG.easyMultDailyLimit) {
+                showNotification('Це надто легко 🙂', `За множення на ${state.minA} монети даємо лише раз на день. Обери складніше!`, '💡');
+                state.daily.multLimits[key] = used + 1; // bump so the message shows once
             }
         } else {
-            state.daily.multLimits[key]++;
+            state.daily.multLimits[key] = used + 1;
         }
     }
 
