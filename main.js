@@ -18,6 +18,7 @@ const state = {
     mixMode: null,     // which mode opened the custom-mix picker
     mixSelected: [],   // numbers the child chose for the custom mix
     examQueue: [],     // pre-built list of 100 facts for the exam mode
+    examResults: [],   // per-question outcomes for end-of-exam analysis {a,b,answer,user,correct}
     // Crossing tens mode
     crossingTens: false,
     crossingStep: 0,
@@ -48,6 +49,8 @@ const CONFIG = {
     dailyBonus: 50,          // coins awarded on completing the daily goal
     easyMultDailyLimit: 1,   // ×2 / ×5 dedicated drills award coins only this many times per day (too easy to farm)
     choicesPerDay: 1,        // multiple-choice ("Варіанти") sessions allowed per day; then typing only
+    examMaxErrors: 2,        // exam is passed with fewer than 3 mistakes (i.e. ≤ this many)
+    examPassBonus: 50,       // coins for passing the exam
     saveDebounceMs: 2000,    // coalesce Firebase writes within this window
     historyCap: 400,         // keep only the most recent N sessions (Firestore doc size)
     // Delay (ms) after an answer before the next problem appears — tune the pacing here
@@ -173,10 +176,10 @@ function getHistory() {
     return state.history || [];
 }
 
-function saveSession(mode, difficultyLabel, correct, total) {
+function saveSession(mode, difficultyLabel, correct, total, extra) {
     const history = getHistory();
     const now = new Date();
-    history.push({
+    const record = {
         date: now.toISOString().split('T')[0], // "2026-03-28"
         mode: mode,
         difficulty: difficultyLabel,
@@ -184,7 +187,9 @@ function saveSession(mode, difficultyLabel, correct, total) {
         total: total,
         timestamp: now.getTime(),
         time: now.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' }),
-    });
+    };
+    if (extra) Object.assign(record, extra); // e.g. exam mistakes/passed
+    history.push(record);
     // Keep the document small: retain only the most recent sessions
     if (history.length > CONFIG.historyCap) {
         history.splice(0, history.length - CONFIG.historyCap);
@@ -528,8 +533,9 @@ function startBlitzMode() {
     blitzSeconds = 60;
 
     document.getElementById('score-value').textContent = '0';
+    document.getElementById('score-display').style.display = '';
     document.getElementById('progress-display').style.display = 'none';
-    
+
     const blitzTimerDisplay = document.getElementById('blitz-timer-display');
     if (blitzTimerDisplay) {
         blitzTimerDisplay.style.display = 'block';
@@ -809,6 +815,7 @@ function startGame() {
     state.crossingInputValue = '';
 
     document.getElementById('score-value').textContent = '0';
+    document.getElementById('score-display').style.display = '';
     document.getElementById('progress-total').textContent = state.totalRounds;
     showScreen('screen-game');
     nextProblem();
@@ -853,6 +860,7 @@ function startExam() {
     state.crossingTens = false;
     state.factors = null;
     state.examQueue = buildExamQueue();
+    state.examResults = [];
     state.totalRounds = state.examQueue.length; // 100
     state.score = 0;
     state.round = 0;
@@ -863,6 +871,8 @@ function startExam() {
     const btd = document.getElementById('blitz-timer-display');
     if (btd) btd.style.display = 'none';
     document.getElementById('progress-display').style.display = 'block';
+    // Hide the score counter during the exam — no right/wrong hints until the end
+    document.getElementById('score-display').style.display = 'none';
     document.getElementById('score-value').textContent = '0';
     document.getElementById('progress-total').textContent = state.totalRounds;
 
@@ -1235,6 +1245,19 @@ function awardCorrect(timeTaken) {
     return earned;
 }
 
+// Exam answer: record the outcome silently and advance (no colour/emoji/reveal)
+function handleExamResult(correct, userAnswer) {
+    if (correct) { state.score++; state.sessionCorrect++; }
+    const p = state.currentProblem;
+    state.examResults.push({ a: p.a, b: p.b, answer: p.answer, user: userAnswer, correct });
+
+    // brief neutral acknowledgement, then next question
+    const numpadDisplay = document.getElementById('numpad-display');
+    if (numpadDisplay) numpadDisplay.textContent = '…';
+    enableNumpad(false);
+    setTimeout(nextProblem, 250);
+}
+
 function handleResult(correct, userAnswer, btnElement) {
     const answerDisplay = document.getElementById('answer-display');
     const feedback = document.getElementById('feedback');
@@ -1243,6 +1266,12 @@ function handleResult(correct, userAnswer, btnElement) {
     // Adaptivity: log this attempt against its fact
     const timeTaken = Date.now() - state.problemStartTime;
     recordStat(state.currentProblem && state.currentProblem.factKey, correct, timeTaken);
+
+    // Exam: no right/wrong feedback during the run — just record and move on
+    if (state.mode === 'exam') {
+        handleExamResult(correct, userAnswer);
+        return;
+    }
 
     if (correct) {
         state.score++;
@@ -1330,8 +1359,15 @@ function showCompletion() {
     const total = state.mode === 'blitz' ? state.round - 1 : state.totalRounds;
     let percent = total > 0 ? Math.round((correct / total) * 100) : 0;
 
-    // Save to history
-    saveSession(state.mode, state.difficultyLabel || modeLabel(state.mode), correct, total);
+    const isExam = state.mode === 'exam';
+    const examErrors = total - correct;
+    const examPassed = examErrors <= CONFIG.examMaxErrors;
+    const examMistakes = isExam ? state.examResults.filter(r => !r.correct)
+        .map(r => ({ a: r.a, b: r.b, answer: r.answer, user: r.user })) : null;
+
+    // Save to history (exam also stores its mistakes + pass flag for later analysis)
+    saveSession(state.mode, state.difficultyLabel || modeLabel(state.mode), correct, total,
+        isExam ? { mistakes: examMistakes, passed: examPassed } : undefined);
 
     document.getElementById('stat-correct').textContent = correct;
     document.getElementById('stat-total').textContent = total;
@@ -1350,17 +1386,18 @@ function showCompletion() {
             completeEmoji.textContent = '⏱️';
             subtitle.textContent = `Час вийшов! Твій рекорд: ${state.blitzRecord}`;
         }
-    } else if (state.mode === 'exam') {
-        let bonus = 0;
-        if (percent >= 90) { completeEmoji.textContent = '🏆'; subtitle.textContent = 'Відмінно! Ти знаєш таблицю! 🌟'; bonus = 50; }
-        else if (percent >= 75) { completeEmoji.textContent = '🎉'; subtitle.textContent = 'Добре! Майже вся таблиця засвоєна.'; bonus = 30; }
-        else if (percent >= 50) { completeEmoji.textContent = '😊'; subtitle.textContent = 'Непогано! Ще трохи практики.'; bonus = 15; }
-        else { completeEmoji.textContent = '💪'; subtitle.textContent = 'Тренуйся ще — і складеш екзамен!'; bonus = 0; }
-        if (bonus > 0) {
-            state.coins += bonus;
+    } else if (isExam) {
+        if (examPassed) {
+            completeEmoji.textContent = '🏆';
+            subtitle.textContent = (examErrors === 0
+                ? 'Екзамен складено без помилок!'
+                : `Екзамен складено! Помилок: ${examErrors}.`) + ` +${CONFIG.examPassBonus} 💰`;
+            state.coins += CONFIG.examPassBonus;
             updateEconomyUI();
             saveGame(true);
-            subtitle.textContent += ` +${bonus} 💰`;
+        } else {
+            completeEmoji.textContent = '💪';
+            subtitle.textContent = `Не склав: ${examErrors} помилок (треба менше 3). Подивись, де саме, і спробуй ще!`;
         }
     } else {
         if (percent === 100) {
@@ -1380,7 +1417,7 @@ function showCompletion() {
 
     const starsContainer = document.getElementById('complete-stars');
     starsContainer.innerHTML = '';
-    if (state.mode !== 'exam') { // 100 stars would be too many — exam shows the score/grade instead
+    if (!isExam) { // 100 stars would be too many — exam shows the score/grade + mistakes instead
         for (let i = 0; i < total; i++) {
             const star = document.createElement('span');
             star.className = 'star';
@@ -1390,11 +1427,34 @@ function showCompletion() {
         }
     }
 
+    // Exam: list the mistakes so they can be reviewed
+    const mistakesEl = document.getElementById('complete-mistakes');
+    if (mistakesEl) {
+        mistakesEl.innerHTML = '';
+        if (isExam) {
+            if (examMistakes.length === 0) {
+                mistakesEl.innerHTML = '<div class="mistakes-none">Жодної помилки! 🎉</div>';
+            } else {
+                mistakesEl.innerHTML = `<div class="mistakes-title">Помилки (${examMistakes.length}):</div>`;
+                const list = document.createElement('div');
+                list.className = 'mistakes-list';
+                examMistakes.forEach(m => {
+                    const chip = document.createElement('div');
+                    chip.className = 'mistake-chip';
+                    chip.innerHTML = `<b>${m.a}×${m.b}=${m.answer}</b><span>ти: ${m.user}</span>`;
+                    list.appendChild(chip);
+                });
+                mistakesEl.appendChild(list);
+            }
+        }
+    }
+
     showScreen('screen-complete');
 
-    if (percent >= 60) {
+    const celebrate = isExam ? examPassed : percent >= 60;
+    if (celebrate) {
         setTimeout(launchConfetti, 300);
-        if (percent === 100) {
+        if (isExam ? examErrors === 0 : percent === 100) {
             setTimeout(launchConfetti, 800);
             setTimeout(launchConfetti, 1300);
         }

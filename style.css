@@ -1886,6 +1886,52 @@ body[data-screen="screen-game"] .global-stats-header {
     display: inline-block;
 }
 
+/* ===== EXAM MISTAKES (completion screen) ===== */
+.complete-mistakes {
+    width: 100%;
+    max-width: 340px;
+    margin: 6px auto 0;
+}
+
+.mistakes-none {
+    font-weight: 800;
+    color: var(--mint-dark);
+}
+
+.mistakes-title {
+    font-weight: 800;
+    color: var(--text-light);
+    margin-bottom: 8px;
+}
+
+.mistakes-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    justify-content: center;
+    max-height: 220px;
+    overflow-y: auto;
+}
+
+.mistake-chip {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    background: var(--wrong-bg);
+    border: 2px solid var(--wrong);
+    border-radius: 12px;
+    padding: 6px 10px;
+    font-size: 0.9rem;
+    color: var(--text);
+    line-height: 1.2;
+}
+
+.mistake-chip span {
+    font-size: 0.75rem;
+    color: var(--wrong);
+    font-weight: 700;
+}
+
 /* ===== CUSTOM MIX MODAL ===== */
 .mix-modal {
     position: fixed;
