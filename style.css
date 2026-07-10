@@ -20,7 +20,9 @@
     --sky-dark: #84C9F5;
     --yellow: #FFF3B0;
     --yellow-dark: #FFE066;
-    
+    --gold: #FFCB47;
+    --gold-light: #FFF1C1;
+
     /* UI Colors */
     --bg: #FFF5F7;
     --bg-gradient: linear-gradient(135deg, #FFF5F7 0%, #F0E6FF 50%, #E8F4FD 100%);
@@ -227,6 +229,12 @@ body {
     background: linear-gradient(135deg, #D6ECFF, var(--sky));
     border-color: var(--sky-dark);
     box-shadow: 0 4px 12px rgba(132, 201, 245, 0.4);
+}
+
+.mode-exam {
+    background: linear-gradient(135deg, var(--gold-light), var(--gold));
+    border-color: var(--gold);
+    box-shadow: 0 4px 12px rgba(255, 200, 60, 0.45);
 }
 
 .mode-icon {

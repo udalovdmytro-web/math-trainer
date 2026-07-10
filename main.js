@@ -17,6 +17,7 @@ const state = {
     factors: null,     // explicit set of operands, e.g. [4,6,7] (mixed); null → use minA..maxA range
     mixMode: null,     // which mode opened the custom-mix picker
     mixSelected: [],   // numbers the child chose for the custom mix
+    examQueue: [],     // pre-built list of 100 facts for the exam mode
     // Crossing tens mode
     crossingTens: false,
     crossingStep: 0,
@@ -67,7 +68,8 @@ const MODE_META = {
     multiplication: { icon: '✖️', label: 'Множення',    color: 'var(--mint)',       reward: 1 },
     division:       { icon: '➗',  label: 'Ділення',     color: 'var(--sky)',        reward: 2 },
     logic:          { icon: '🧩', label: 'Логіка',      color: 'var(--peach)',      reward: 3 },
-    blitz:          { icon: '⏱️', label: 'Бліц-Турнір', color: 'var(--yellow)',     reward: 1 }
+    blitz:          { icon: '⏱️', label: 'Бліц-Турнір', color: 'var(--yellow)',     reward: 1 },
+    exam:           { icon: '📝', label: 'Екзамен',     color: 'var(--gold)' } // reward handled at completion
 };
 
 function modeLabel(mode) { return (MODE_META[mode] && MODE_META[mode].label) || mode; }
@@ -654,6 +656,14 @@ function generateProblem() {
     }
 
     switch (state.mode) {
+        case 'exam': {
+            // Pull the pre-built fact for this question number
+            const item = state.examQueue[state.round - 1] || state.examQueue[0];
+            a = item.a; b = item.b; answer = item.answer;
+            opSymbol = '×';
+            break;
+        }
+
         case 'addition':
             // a + b = ?, both a,b >= 3, result <= maxNum
             answer = randomInt(6, state.maxNum);
@@ -789,6 +799,7 @@ function enforceChoicesLimit() {
 
 function startGame() {
     enforceChoicesLimit();
+    state.totalRounds = CONFIG.totalRounds; // reset (exam may have set it to 100)
     state.score = 0;
     state.round = 0;
     state.sessionCorrect = 0;
@@ -799,6 +810,62 @@ function startGame() {
 
     document.getElementById('score-value').textContent = '0';
     document.getElementById('progress-total').textContent = state.totalRounds;
+    showScreen('screen-game');
+    nextProblem();
+}
+
+// ===== EXAM MODE =====
+// 100 questions: all 64 table facts (2–9 × 2–9, no ×1/×10) at least once,
+// plus 36 repeats of the statistically hardest facts.
+function buildExamQueue() {
+    const all = [];
+    for (let a = 2; a <= 9; a++) {
+        for (let b = 2; b <= 9; b++) {
+            all.push({ a, b, answer: a * b, opSymbol: '×', factKey: `m:${a}x${b}` });
+        }
+    }
+    // Rank by neediness (adaptive weight), tie-break by larger product (harder)
+    const ranked = all.slice().sort((x, y) => {
+        const d = factWeight(y.factKey) - factWeight(x.factKey);
+        return d !== 0 ? d : (y.a * y.b) - (x.a * x.b);
+    });
+    const repeats = ranked.slice(0, 36).map(f => ({ ...f }));
+
+    const queue = shuffleArray(all.concat(repeats));
+    // Avoid the same fact appearing twice in a row
+    for (let i = 1; i < queue.length; i++) {
+        if (queue[i].factKey === queue[i - 1].factKey) {
+            for (let j = i + 1; j < queue.length; j++) {
+                if (queue[j].factKey !== queue[i - 1].factKey) {
+                    [queue[i], queue[j]] = [queue[j], queue[i]];
+                    break;
+                }
+            }
+        }
+    }
+    return queue;
+}
+
+function startExam() {
+    state.mode = 'exam';
+    state.inputMode = 'numpad';        // exam = type the answer, no options
+    state.difficultyLabel = 'Екзамен';
+    state.crossingTens = false;
+    state.factors = null;
+    state.examQueue = buildExamQueue();
+    state.totalRounds = state.examQueue.length; // 100
+    state.score = 0;
+    state.round = 0;
+    state.sessionCorrect = 0;
+    state.numpadValue = '';
+
+    if (blitzTimer) clearInterval(blitzTimer);
+    const btd = document.getElementById('blitz-timer-display');
+    if (btd) btd.style.display = 'none';
+    document.getElementById('progress-display').style.display = 'block';
+    document.getElementById('score-value').textContent = '0';
+    document.getElementById('progress-total').textContent = state.totalRounds;
+
     showScreen('screen-game');
     nextProblem();
 }
@@ -1131,6 +1198,7 @@ function awardCorrect(timeTaken) {
 
     const meta = MODE_META[state.mode] || {};
     let earned = state.crossingTens ? (meta.crossingReward || 2) : (meta.reward || 1);
+    if (state.mode === 'exam') earned = 0; // exam is graded with a bonus at the end, not per answer
 
     // Anti-farming: the trivial ×2 and ×5 dedicated drills award coins only once per day
     if (state.mode === 'multiplication' && state.minA === state.maxA && (state.minA === 2 || state.minA === 5)) {
@@ -1282,6 +1350,18 @@ function showCompletion() {
             completeEmoji.textContent = '⏱️';
             subtitle.textContent = `Час вийшов! Твій рекорд: ${state.blitzRecord}`;
         }
+    } else if (state.mode === 'exam') {
+        let bonus = 0;
+        if (percent >= 90) { completeEmoji.textContent = '🏆'; subtitle.textContent = 'Відмінно! Ти знаєш таблицю! 🌟'; bonus = 50; }
+        else if (percent >= 75) { completeEmoji.textContent = '🎉'; subtitle.textContent = 'Добре! Майже вся таблиця засвоєна.'; bonus = 30; }
+        else if (percent >= 50) { completeEmoji.textContent = '😊'; subtitle.textContent = 'Непогано! Ще трохи практики.'; bonus = 15; }
+        else { completeEmoji.textContent = '💪'; subtitle.textContent = 'Тренуйся ще — і складеш екзамен!'; bonus = 0; }
+        if (bonus > 0) {
+            state.coins += bonus;
+            updateEconomyUI();
+            saveGame(true);
+            subtitle.textContent += ` +${bonus} 💰`;
+        }
     } else {
         if (percent === 100) {
             completeEmoji.textContent = '🏆';
@@ -1300,12 +1380,14 @@ function showCompletion() {
 
     const starsContainer = document.getElementById('complete-stars');
     starsContainer.innerHTML = '';
-    for (let i = 0; i < total; i++) {
-        const star = document.createElement('span');
-        star.className = 'star';
-        star.textContent = i < correct ? '⭐' : '☆';
-        star.style.animationDelay = `${i * 0.08}s`;
-        starsContainer.appendChild(star);
+    if (state.mode !== 'exam') { // 100 stars would be too many — exam shows the score/grade instead
+        for (let i = 0; i < total; i++) {
+            const star = document.createElement('span');
+            star.className = 'star';
+            star.textContent = i < correct ? '⭐' : '☆';
+            star.style.animationDelay = `${i * 0.08}s`;
+            starsContainer.appendChild(star);
+        }
     }
 
     showScreen('screen-complete');
@@ -1322,7 +1404,8 @@ function showCompletion() {
 }
 
 function playAgain() {
-    startGame();
+    if (state.mode === 'exam') startExam();
+    else startGame();
 }
 
 // ===== CALENDAR =====
