@@ -19,6 +19,7 @@ const state = {
     mixSelected: [],   // numbers the child chose for the custom mix
     examQueue: [],     // pre-built list of 100 facts for the exam mode
     examResults: [],   // per-question outcomes for end-of-exam analysis {a,b,answer,user,correct}
+    session: null,     // active unfinished session snapshot (resumed on return; blocks restart)
     // Crossing tens mode
     crossingTens: false,
     crossingStep: 0,
@@ -89,7 +90,8 @@ async function saveToFirebase() {
             achievements: state.achievements,
             blitzRecord: state.blitzRecord,
             history: state.history,
-            stats: state.stats
+            stats: state.stats,
+            activeSession: state.session || null
         });
     } catch (e) {
         console.error("Ошибка сохранения в Firebase: ", e);
@@ -235,6 +237,7 @@ async function handleLogin() {
             state.blitzRecord = data.blitzRecord || 0;
             state.history = data.history || [];
             state.stats = data.stats || {};
+            state.session = data.activeSession || null;
         } else {
             // New user
             state.coins = 0;
@@ -245,7 +248,8 @@ async function handleLogin() {
             state.blitzRecord = 0;
             state.history = [];
             state.stats = {};
-            await docRef.set({ coins: 0, combo: 0, robloxTime: 0, daily: state.daily, achievements: [], blitzRecord: 0, history: [], stats: {} });
+            state.session = null;
+            await docRef.set({ coins: 0, combo: 0, robloxTime: 0, daily: state.daily, achievements: [], blitzRecord: 0, history: [], stats: {}, activeSession: null });
         }
         
         state.userId = pin;
@@ -331,7 +335,92 @@ function goToMenu() {
     document.getElementById('crossing-container').style.display = 'none';
     document.getElementById('problem-container').style.display = '';
     refreshInputModeLock();
+    updateResumeBanner();
     showScreen('screen-menu');
+}
+
+// ===== SESSION PERSISTENCE (no restart loophole) =====
+// A started 20-question game or exam is saved after every question and must be
+// finished — pressing "back" no longer restarts it; the child resumes where they left off.
+function isResumableMode() {
+    return ['addition', 'subtraction', 'multiplication', 'division', 'logic', 'exam'].includes(state.mode);
+}
+
+function persistSession() {
+    if (!isResumableMode()) return; // blitz etc. are not saved
+    state.session = {
+        mode: state.mode,
+        round: state.round,
+        score: state.score,
+        sessionCorrect: state.sessionCorrect,
+        totalRounds: state.totalRounds,
+        difficultyLabel: state.difficultyLabel,
+        inputMode: state.inputMode,
+        minA: state.minA, maxA: state.maxA, factors: state.factors,
+        maxNum: state.maxNum, crossingTens: state.crossingTens, logicMode: state.logicMode,
+        examQueue: state.mode === 'exam' ? state.examQueue : null,
+        examResults: state.mode === 'exam' ? state.examResults : null
+    };
+    saveGame();
+}
+
+function updateResumeBanner() {
+    const banner = document.getElementById('resume-banner');
+    if (!banner) return;
+    const s = state.session;
+    if (s && isResumableModeName(s.mode)) {
+        banner.style.display = 'flex';
+        const label = MODE_META[s.mode] ? MODE_META[s.mode].label : s.mode;
+        document.getElementById('resume-sub').textContent = `${label} · питання ${s.round} з ${s.totalRounds}`;
+    } else {
+        banner.style.display = 'none';
+    }
+}
+
+function isResumableModeName(mode) {
+    return ['addition', 'subtraction', 'multiplication', 'division', 'logic', 'exam'].includes(mode);
+}
+
+// Returns true and resumes if there's an unfinished session (used to block starting a new game)
+function blockedBySession() {
+    if (state.session && isResumableModeName(state.session.mode)) {
+        resumeSession();
+        return true;
+    }
+    return false;
+}
+
+function resumeSession() {
+    const s = state.session;
+    if (!s) return;
+    state.mode = s.mode;
+    state.difficultyLabel = s.difficultyLabel;
+    state.inputMode = s.inputMode;
+    state.minA = s.minA; state.maxA = s.maxA; state.factors = s.factors;
+    state.maxNum = s.maxNum; state.crossingTens = s.crossingTens; state.logicMode = s.logicMode;
+    state.totalRounds = s.totalRounds;
+    state.score = s.score;
+    state.sessionCorrect = s.sessionCorrect;
+    if (s.mode === 'exam') {
+        state.examQueue = s.examQueue || [];
+        state.examResults = s.examResults || [];
+    }
+    state.round = s.round - 1; // nextProblem() will ++ back to the saved question
+    state.numpadValue = '';
+    state.crossingStep = 0;
+    state.crossingData = null;
+    state.crossingInputValue = '';
+
+    if (typeof blitzTimer !== 'undefined' && blitzTimer) clearInterval(blitzTimer);
+    const btd = document.getElementById('blitz-timer-display');
+    if (btd) btd.style.display = 'none';
+    document.getElementById('progress-display').style.display = 'block';
+    document.getElementById('score-value').textContent = state.score;
+    document.getElementById('score-display').style.display = (s.mode === 'exam') ? 'none' : '';
+    document.getElementById('progress-total').textContent = state.totalRounds;
+
+    showScreen('screen-game');
+    nextProblem();
 }
 
 // ===== INPUT MODE =====
@@ -363,6 +452,7 @@ function refreshInputModeLock() {
 
 // ===== SUB-MENU =====
 function showSubMenu(mode) {
+    if (blockedBySession()) return; // must finish the active session first
     state.mode = mode;
     const submenuContainer = document.getElementById('submenu-container');
     const submenuIcon = document.getElementById('submenu-icon');
@@ -524,6 +614,7 @@ let blitzTimer = null;
 let blitzSeconds = 60;
 
 function startBlitzMode() {
+    if (blockedBySession()) return; // finish the active session first
     state.mode = 'blitz';
     enforceChoicesLimit();
     state.score = 0;
@@ -854,6 +945,7 @@ function buildExamQueue() {
 }
 
 function startExam() {
+    if (blockedBySession()) return; // resume the unfinished session instead of restarting
     state.mode = 'exam';
     state.inputMode = 'numpad';        // exam = type the answer, no options
     state.difficultyLabel = 'Екзамен';
@@ -889,6 +981,8 @@ function nextProblem() {
         showCompletion();
         return;
     }
+
+    persistSession(); // save progress at the start of each question (resumable modes only)
 
     document.getElementById('progress-current').textContent = state.round;
     document.getElementById('progress-bar').style.width = `${((state.round - 1) / state.totalRounds) * 100}%`;
@@ -1355,6 +1449,7 @@ function disableChoices() {
 
 // ===== COMPLETION SCREEN =====
 function showCompletion() {
+    state.session = null; // session finished — clear the resumable snapshot
     const correct = state.sessionCorrect;
     const total = state.mode === 'blitz' ? state.round - 1 : state.totalRounds;
     let percent = total > 0 ? Math.round((correct / total) * 100) : 0;

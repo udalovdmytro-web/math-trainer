@@ -1886,6 +1886,44 @@ body[data-screen="screen-game"] .global-stats-header {
     display: inline-block;
 }
 
+/* ===== RESUME BANNER (unfinished session) ===== */
+.resume-banner {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    width: 100%;
+    max-width: 440px;
+    margin: 0 auto 16px;
+    padding: 16px 20px;
+    border-radius: var(--radius);
+    background: linear-gradient(135deg, var(--gold-light), var(--gold));
+    border: 3px solid var(--gold);
+    box-shadow: 0 4px 16px rgba(255, 200, 60, 0.5);
+    cursor: pointer;
+    transition: transform 0.2s ease;
+    animation: pulse 2s ease-in-out infinite;
+}
+
+.resume-banner:active {
+    transform: scale(0.98);
+}
+
+.resume-icon {
+    font-size: 1.8rem;
+}
+
+.resume-title {
+    font-size: 1.2rem;
+    font-weight: 900;
+    color: var(--text);
+}
+
+.resume-sub {
+    font-size: 0.9rem;
+    font-weight: 700;
+    color: var(--text-light);
+}
+
 /* ===== EXAM MISTAKES (completion screen) ===== */
 .complete-mistakes {
     width: 100%;
