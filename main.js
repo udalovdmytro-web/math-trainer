@@ -1198,10 +1198,48 @@ function startCrossingProblem() {
     state.crossingInputValue = '';
     state.currentProblem = problem;
 
+    renderCrossingVisual(problem);
     renderCrossingSteps();
     document.getElementById('crossing-input-display').textContent = '?';
     document.getElementById('crossing-input-display').className = 'crossing-input-display';
     enableCrossingNumpad(true);
+}
+
+// Ten-frame-style picture of the make-ten decomposition (why 8+7 becomes 10+5)
+function renderCrossingVisual(p) {
+    const el = document.getElementById('crossing-visual');
+    if (!el) return;
+    el.innerHTML = '';
+
+    function group(specs, label) {
+        const g = document.createElement('div');
+        g.className = 'cross-group';
+        const dots = document.createElement('div');
+        dots.className = 'cross-dots';
+        specs.forEach(([cls, n]) => {
+            for (let i = 0; i < n; i++) {
+                const d = document.createElement('span');
+                d.className = 'cross-dot ' + cls;
+                dots.appendChild(d);
+            }
+        });
+        g.appendChild(dots);
+        const cap = document.createElement('div');
+        cap.className = 'cross-cap';
+        cap.textContent = label;
+        g.appendChild(cap);
+        el.appendChild(g);
+    }
+
+    if (p.opSymbol === '+') {
+        const toTen = 10 - p.a, remainder = p.b - toTen;
+        group([['orig', p.a], ['add', toTen]], '10');          // a + (доповнення до 10)
+        if (remainder > 0) group([['add', remainder]], '+' + remainder); // leftover
+    } else {
+        const toTen = p.a - 10, remainder = p.b - toTen;        // answer = 10 − remainder
+        group([['orig', p.answer], ['remove', remainder]], '10');
+        if (toTen > 0) group([['remove', toTen]], '−' + toTen); // the part beyond ten, removed first
+    }
 }
 
 function renderCrossingSteps() {
