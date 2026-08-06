@@ -20,6 +20,7 @@ const state = {
     examQueue: [],     // pre-built list of 100 facts for the exam mode
     examResults: [],   // per-question outcomes for end-of-exam analysis {a,b,answer,user,correct}
     session: null,     // active unfinished session snapshot (resumed on return; blocks restart)
+    sessionLog: [],    // per-question log for the +/- results table {label, answer, user, correct, timeMs}
     // Crossing tens mode
     crossingTens: false,
     crossingStep: 0,
@@ -347,6 +348,11 @@ function isResumableMode() {
     return ['addition', 'subtraction', 'multiplication', 'division', 'logic', 'exam', 'plusminus', 'compose'].includes(state.mode);
 }
 
+// Modes that get a per-question results table at the end (example / right-wrong / seconds)
+function hasResultsTable(mode) {
+    return ['addition', 'subtraction', 'plusminus', 'compose'].includes(mode);
+}
+
 function persistSession() {
     if (!isResumableMode()) return; // blitz etc. are not saved
     // Firestore rejects `undefined`, so coerce every optional field to null
@@ -365,7 +371,8 @@ function persistSession() {
         crossingTens: !!state.crossingTens,
         logicMode: state.logicMode || null,
         examQueue: state.mode === 'exam' ? state.examQueue : null,
-        examResults: state.mode === 'exam' ? state.examResults : null
+        examResults: state.mode === 'exam' ? state.examResults : null,
+        sessionLog: state.sessionLog || []
     };
     saveGame();
 }
@@ -407,6 +414,7 @@ function resumeSession() {
     state.totalRounds = s.totalRounds;
     state.score = s.score;
     state.sessionCorrect = s.sessionCorrect;
+    state.sessionLog = s.sessionLog || [];
     if (s.mode === 'exam') {
         state.examQueue = s.examQueue || [];
         state.examResults = s.examResults || [];
@@ -445,7 +453,8 @@ function showSubMenu(mode) {
             title: 'Додавання',
             options: [
                 { emoji: '🌟', label: 'До 20', desc: 'Додавання в межах 20', maxNum: 20, reward: 1 },
-                { emoji: '🔟', label: 'Через десяток', desc: 'Розкладаємо через 10', crossing: true, reward: 2 },
+                // Тимчасово прихований — логіка збережена, повернути прибравши коментар:
+                // { emoji: '🔟', label: 'Через десяток', desc: 'Розкладаємо через 10', crossing: true, reward: 2 },
             ]
         },
         subtraction: {
@@ -453,7 +462,8 @@ function showSubMenu(mode) {
             title: 'Віднімання',
             options: [
                 { emoji: '🌟', label: 'До 20', desc: 'Віднімання в межах 20', maxNum: 20, reward: 2 },
-                { emoji: '🔟', label: 'Через десяток', desc: 'Розкладаємо через 10', crossing: true, reward: 3 },
+                // Тимчасово прихований — логіка збережена, повернути прибравши коментар:
+                // { emoji: '🔟', label: 'Через десяток', desc: 'Розкладаємо через 10', crossing: true, reward: 3 },
             ]
         },
         multiplication: {
@@ -914,6 +924,7 @@ function startGame() {
     state.score = 0;
     state.round = 0;
     state.sessionCorrect = 0;
+    state.sessionLog = [];
     state.numpadValue = '';
     state.crossingStep = 0;
     state.crossingData = null;
@@ -1485,6 +1496,15 @@ function handleResult(correct, userAnswer, btnElement) {
         return;
     }
 
+    // Per-question log for the end-of-session results table (+/- family)
+    if (hasResultsTable(state.mode)) {
+        const p = state.currentProblem;
+        const label = state.mode === 'compose'
+            ? `${p.b} + ? = ${p.a}`
+            : `${p.a} ${p.opSymbol} ${p.b} = ${p.answer}`;
+        state.sessionLog.push({ label, answer: p.answer, user: userAnswer, correct, timeMs: timeTaken });
+    }
+
     if (correct) {
         state.score++;
         state.sessionCorrect++;
@@ -1663,6 +1683,27 @@ function showCompletion() {
                 });
                 mistakesEl.appendChild(list);
             }
+        }
+    }
+
+    // +/- family: per-question results table (example / right-wrong / seconds)
+    const resultsEl = document.getElementById('complete-results');
+    if (resultsEl) {
+        resultsEl.innerHTML = '';
+        if (hasResultsTable(state.mode) && state.sessionLog && state.sessionLog.length) {
+            let rows = '';
+            state.sessionLog.forEach(r => {
+                const sec = (r.timeMs / 1000).toFixed(1);
+                const you = r.correct ? '' : ` <span class="rt-you">ти: ${r.user}</span>`;
+                rows += `<tr class="${r.correct ? 'rt-ok' : 'rt-bad'}">
+                    <td class="rt-ex">${r.label}${you}</td>
+                    <td class="rt-sec">${sec}s</td>
+                    <td class="rt-mark">${r.correct ? '✓' : '✗'}</td>
+                </tr>`;
+            });
+            resultsEl.innerHTML = `<table class="results-table">
+                <thead><tr><th>Приклад</th><th>Час</th><th></th></tr></thead>
+                <tbody>${rows}</tbody></table>`;
         }
     }
 

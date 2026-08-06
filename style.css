@@ -2097,6 +2097,48 @@ body[data-screen="screen-game"] .global-stats-header {
     font-weight: 700;
 }
 
+/* ===== RESULTS TABLE (+/- completion) ===== */
+.complete-results {
+    width: 100%;
+    max-width: 360px;
+    margin: 10px auto 0;
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.results-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.95rem;
+}
+
+.results-table th {
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: var(--text-light);
+    text-align: left;
+    padding: 4px 8px;
+    position: sticky;
+    top: 0;
+    background: var(--white);
+}
+
+.results-table td {
+    padding: 6px 8px;
+    font-weight: 700;
+    color: var(--text);
+}
+
+.results-table tr.rt-ok { background: var(--correct-bg); }
+.results-table tr.rt-bad { background: var(--wrong-bg); }
+.results-table tr { border-bottom: 2px solid #fff; }
+
+.results-table .rt-sec { color: var(--text-light); text-align: right; white-space: nowrap; }
+.results-table .rt-mark { text-align: center; width: 24px; }
+.results-table tr.rt-ok .rt-mark { color: var(--mint-dark); }
+.results-table tr.rt-bad .rt-mark { color: var(--wrong); }
+.results-table .rt-you { color: var(--wrong); font-weight: 800; font-size: 0.85rem; }
+
 /* ===== CUSTOM MIX MODAL ===== */
 .mix-modal {
     position: fixed;
