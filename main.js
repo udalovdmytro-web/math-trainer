@@ -349,16 +349,21 @@ function isResumableMode() {
 
 function persistSession() {
     if (!isResumableMode()) return; // blitz etc. are not saved
+    // Firestore rejects `undefined`, so coerce every optional field to null
     state.session = {
         mode: state.mode,
         round: state.round,
         score: state.score,
         sessionCorrect: state.sessionCorrect,
         totalRounds: state.totalRounds,
-        difficultyLabel: state.difficultyLabel,
-        inputMode: state.inputMode,
-        minA: state.minA, maxA: state.maxA, factors: state.factors,
-        maxNum: state.maxNum, crossingTens: state.crossingTens, logicMode: state.logicMode,
+        difficultyLabel: state.difficultyLabel || null,
+        inputMode: state.inputMode || 'numpad',
+        minA: state.minA != null ? state.minA : null,
+        maxA: state.maxA != null ? state.maxA : null,
+        factors: state.factors || null,
+        maxNum: state.maxNum != null ? state.maxNum : null,
+        crossingTens: !!state.crossingTens,
+        logicMode: state.logicMode || null,
         examQueue: state.mode === 'exam' ? state.examQueue : null,
         examResults: state.mode === 'exam' ? state.examResults : null
     };

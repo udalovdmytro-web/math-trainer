@@ -511,9 +511,21 @@ body {
     display: flex;
     align-items: center;
     justify-content: space-between;
+    flex-wrap: wrap; /* never overflow the viewport on a phone */
+    gap: 6px;
     width: 100%;
     max-width: 500px;
     margin-bottom: 8px;
+}
+
+/* Tighten the header on phones so it stays on one row within 390px */
+@media (max-width: 480px) {
+    .game-stats { gap: 8px; }
+    .game-economy,
+    .score-display,
+    .progress-display { padding: 6px 10px; font-size: 0.95rem; }
+    .score-star { font-size: 1.05rem; }
+    #btn-back-game { padding: 8px 12px; font-size: 0.9rem; }
 }
 
 .score-display {
