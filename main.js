@@ -71,6 +71,7 @@ const MODE_META = {
     subtraction:    { icon: '➖',  label: 'Віднімання',  color: 'var(--lavender)',   reward: 2, crossingReward: 3 },
     multiplication: { icon: '✖️', label: 'Множення',    color: 'var(--mint)',       reward: 1 },
     division:       { icon: '➗',  label: 'Ділення',     color: 'var(--sky)',        reward: 2 },
+    plusminus:      { icon: '➕➖', label: 'Плюс-мінус',  color: 'var(--peach)',      reward: 1 },
     logic:          { icon: '🧩', label: 'Логіка',      color: 'var(--peach)',      reward: 3 },
     blitz:          { icon: '⏱️', label: 'Бліц-Турнір', color: 'var(--yellow)',     reward: 1 },
     exam:           { icon: '📝', label: 'Екзамен',     color: 'var(--gold)' } // reward handled at completion
@@ -343,7 +344,7 @@ function goToMenu() {
 // A started 20-question game or exam is saved after every question and must be
 // finished — pressing "back" no longer restarts it; the child resumes where they left off.
 function isResumableMode() {
-    return ['addition', 'subtraction', 'multiplication', 'division', 'logic', 'exam'].includes(state.mode);
+    return ['addition', 'subtraction', 'multiplication', 'division', 'logic', 'exam', 'plusminus'].includes(state.mode);
 }
 
 function persistSession() {
@@ -378,7 +379,7 @@ function updateResumeBanner() {
 }
 
 function isResumableModeName(mode) {
-    return ['addition', 'subtraction', 'multiplication', 'division', 'logic', 'exam'].includes(mode);
+    return ['addition', 'subtraction', 'multiplication', 'division', 'logic', 'exam', 'plusminus'].includes(mode);
 }
 
 // Returns true and resumes if there's an unfinished session (used to block starting a new game)
@@ -710,6 +711,24 @@ function pickWeightedFact(pool) {
     return pool[pool.length - 1];
 }
 
+// Core addition/subtraction facts within maxNum (single-digit operands 2..9,
+// includes the crossing-the-ten facts that are the real weak spot).
+function buildAddSubPool(mode) {
+    const pool = [];
+    const max = state.maxNum || 20;
+    for (let x = 2; x <= 9; x++) {
+        for (let y = 2; y <= 9; y++) {
+            if (mode === 'addition') {
+                if (x + y <= max) pool.push({ a: x, b: y, answer: x + y, factKey: `a:${x}+${y}` });
+            } else { // subtraction: (x + y) − x = y  → subtrahend and answer both 2..9
+                const minu = x + y;
+                if (minu <= max) pool.push({ a: minu, b: x, answer: y, factKey: `s:${minu}-${x}` });
+            }
+        }
+    }
+    return pool;
+}
+
 // Build the candidate pool for the current multiplication/division difficulty.
 function buildFactPool(mode) {
     const pool = [];
@@ -761,21 +780,29 @@ function generateProblem() {
             break;
         }
 
-        case 'addition':
-            // a + b = ?, both a,b >= 3, result <= maxNum
-            answer = randomInt(6, state.maxNum);
-            a = randomInt(3, answer - 3);
-            b = answer - a;
+        case 'addition': {
+            // Adaptive: weight toward weak/slow single-digit facts (incl. crossing the ten)
+            const pick = pickWeightedFact(buildAddSubPool('addition'));
+            a = pick.a; b = pick.b; answer = pick.answer;
             opSymbol = '+';
             break;
+        }
 
-        case 'subtraction':
-            // a - b = ?, b >= 3, answer >= 3
-            a = randomInt(6, state.maxNum);
-            b = randomInt(3, Math.max(3, a - 3));
-            answer = a - b;
+        case 'subtraction': {
+            const pick = pickWeightedFact(buildAddSubPool('subtraction'));
+            a = pick.a; b = pick.b; answer = pick.answer;
             opSymbol = '−';
             break;
+        }
+
+        case 'plusminus': {
+            // Mixed drill: alternate + and − (guarantees subtraction), each weighted by weakness
+            const op = (state.round % 2 === 1) ? 'addition' : 'subtraction';
+            const pick = pickWeightedFact(buildAddSubPool(op));
+            a = pick.a; b = pick.b; answer = pick.answer;
+            opSymbol = op === 'addition' ? '+' : '−';
+            break;
+        }
 
         case 'multiplication': {
             // Adaptive: pick a fact weighted toward what's still weak
@@ -910,6 +937,17 @@ function startGame() {
     document.getElementById('progress-total').textContent = state.totalRounds;
     showScreen('screen-game');
     nextProblem();
+}
+
+// Mixed +/- drill: alternates addition and subtraction, adaptive within each
+function startPlusMinus() {
+    if (blockedBySession()) return;
+    state.mode = 'plusminus';
+    state.crossingTens = false;
+    state.factors = null;
+    state.maxNum = 20;
+    state.difficultyLabel = 'Плюс-мінус';
+    startGame();
 }
 
 // ===== EXAM MODE =====
