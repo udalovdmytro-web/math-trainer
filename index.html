@@ -8,7 +8,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="style.css?v=19">
+    <link rel="stylesheet" href="style.css?v=20">
     
     <!-- Firebase App (core) -->
     <script src="https://www.gstatic.com/firebasejs/10.9.0/firebase-app-compat.js"></script>
@@ -118,6 +118,11 @@
                 <div class="mode-icon">➕➖</div>
                 <div class="mode-label">Плюс-мінус</div>
                 <div class="mode-desc">Додавання і віднімання впереміш</div>
+            </div>
+            <div class="mode-card mode-compose" onclick="startCompose()" id="btn-compose">
+                <div class="mode-icon">🔟</div>
+                <div class="mode-label">Склад числа</div>
+                <div class="mode-desc">Скільки не вистачає до числа</div>
             </div>
             <div class="mode-card mode-logic" onclick="showSubMenu('logic')" id="btn-logic">
                 <div class="mode-icon">🧩</div>
@@ -237,6 +242,9 @@
                 </div>
             </div>
         </div>
+
+        <!-- Number-bond dots (Склад числа mode) -->
+        <div class="compose-visual" id="compose-visual" style="display:none;"></div>
 
         <!-- Feedback emoji -->
         <div class="feedback" id="feedback"></div>
@@ -415,7 +423,7 @@
         </div>
     </div>
 
-    <script src="firebase-config.js?v=19"></script>
-    <script src="main.js?v=19"></script>
+    <script src="firebase-config.js?v=20"></script>
+    <script src="main.js?v=20"></script>
 </body>
 </html>

@@ -72,6 +72,7 @@ const MODE_META = {
     multiplication: { icon: '✖️', label: 'Множення',    color: 'var(--mint)',       reward: 1 },
     division:       { icon: '➗',  label: 'Ділення',     color: 'var(--sky)',        reward: 2 },
     plusminus:      { icon: '➕➖', label: 'Плюс-мінус',  color: 'var(--peach)',      reward: 1 },
+    compose:        { icon: '🔟', label: 'Склад числа',  color: 'var(--mint)',       reward: 1 },
     logic:          { icon: '🧩', label: 'Логіка',      color: 'var(--peach)',      reward: 3 },
     blitz:          { icon: '⏱️', label: 'Бліц-Турнір', color: 'var(--yellow)',     reward: 1 },
     exam:           { icon: '📝', label: 'Екзамен',     color: 'var(--gold)' } // reward handled at completion
@@ -343,7 +344,7 @@ function goToMenu() {
 // A started 20-question game or exam is saved after every question and must be
 // finished — pressing "back" no longer restarts it; the child resumes where they left off.
 function isResumableMode() {
-    return ['addition', 'subtraction', 'multiplication', 'division', 'logic', 'exam', 'plusminus'].includes(state.mode);
+    return ['addition', 'subtraction', 'multiplication', 'division', 'logic', 'exam', 'plusminus', 'compose'].includes(state.mode);
 }
 
 function persistSession() {
@@ -378,7 +379,7 @@ function updateResumeBanner() {
 }
 
 function isResumableModeName(mode) {
-    return ['addition', 'subtraction', 'multiplication', 'division', 'logic', 'exam', 'plusminus'].includes(mode);
+    return ['addition', 'subtraction', 'multiplication', 'division', 'logic', 'exam', 'plusminus', 'compose'].includes(mode);
 }
 
 // Returns true and resumes if there's an unfinished session (used to block starting a new game)
@@ -636,6 +637,7 @@ function factKeyFor(mode, a, b, opSymbol) {
         case '÷': return `d:${a}:${b}`;
     }
     if (mode === 'logic') return `l:${state.logicMode || 'eq'}`;
+    if (mode === 'compose') return `c:${a}:${b}`; // a=target, b=part
     return null;
 }
 
@@ -695,6 +697,20 @@ function buildAddSubPool(mode) {
                 const minu = x + y;
                 if (minu <= max) pool.push({ a: minu, b: x, answer: y, factKey: `s:${minu}-${x}` });
             }
+        }
+    }
+    return pool;
+}
+
+// Number-bond facts: compose a target N (5..10) from two parts. Target 10 weighted
+// higher (the key bond for crossing the ten).
+function buildComposePool() {
+    const pool = [];
+    for (let N = 5; N <= 10; N++) {
+        for (let part = 1; part < N; part++) {
+            const entry = { N, part, answer: N - part, factKey: `c:${N}:${part}` };
+            pool.push(entry);
+            if (N === 10) pool.push(entry); // emphasise bonds to 10
         }
     }
     return pool;
@@ -772,6 +788,14 @@ function generateProblem() {
             const pick = pickWeightedFact(buildAddSubPool(op));
             a = pick.a; b = pick.b; answer = pick.answer;
             opSymbol = op === 'addition' ? '+' : '−';
+            break;
+        }
+
+        case 'compose': {
+            // Number bonds: part + ? = target. a=target, b=part, answer=target-part
+            const pick = pickWeightedFact(buildComposePool());
+            a = pick.N; b = pick.part; answer = pick.answer;
+            opSymbol = '';
             break;
         }
 
@@ -908,6 +932,16 @@ function startPlusMinus() {
     startGame();
 }
 
+// Number-bonds drill: compose numbers up to 10 (foundation for crossing the ten)
+function startCompose() {
+    if (blockedBySession()) return;
+    state.mode = 'compose';
+    state.crossingTens = false;
+    state.factors = null;
+    state.difficultyLabel = 'Склад числа';
+    startGame();
+}
+
 // ===== EXAM MODE =====
 // 100 questions: all 64 table facts (2–9 × 2–9, no ×1/×10) at least once,
 // plus 36 repeats of the statistically hardest facts.
@@ -1015,15 +1049,30 @@ function nextProblem() {
 
     const eqSign = document.querySelector('.problem-eq');
     const numA = document.getElementById('num-a');
-    if (state.mode === 'logic') {
+    const answerDisplay = document.getElementById('answer-display');
+    const composeVisual = document.getElementById('compose-visual');
+
+    if (state.mode === 'compose') {
+        // "part + ? = target" with a dots visual (a=target, b=part)
+        numA.textContent = `${b} + ? = ${a}`;
+        numA.style.marginRight = '0';
+        document.getElementById('op').textContent = '';
+        document.getElementById('num-b').textContent = '';
         if (eqSign) eqSign.style.display = 'none';
-        if (numA) numA.style.marginRight = '15px';
+        answerDisplay.style.display = 'none';
+        if (composeVisual) renderComposeVisual(a, b);
     } else {
-        if (eqSign) eqSign.style.display = 'inline';
-        if (numA) numA.style.marginRight = '0';
+        answerDisplay.style.display = '';
+        if (composeVisual) composeVisual.style.display = 'none';
+        if (state.mode === 'logic') {
+            if (eqSign) eqSign.style.display = 'none';
+            if (numA) numA.style.marginRight = '15px';
+        } else {
+            if (eqSign) eqSign.style.display = 'inline';
+            if (numA) numA.style.marginRight = '0';
+        }
     }
 
-    const answerDisplay = document.getElementById('answer-display');
     answerDisplay.textContent = '?';
     answerDisplay.className = 'problem-answer';
 
@@ -1089,6 +1138,19 @@ function enableNumpad(enabled) {
     document.querySelectorAll('#numpad-container .numpad-btn').forEach(btn => {
         btn.disabled = !enabled;
     });
+}
+
+// Dots for the "склад числа" visual: `part` filled, the rest empty (up to target)
+function renderComposeVisual(target, part) {
+    const el = document.getElementById('compose-visual');
+    if (!el) return;
+    el.innerHTML = '';
+    el.style.display = 'flex';
+    for (let i = 0; i < target; i++) {
+        const dot = document.createElement('span');
+        dot.className = 'compose-dot ' + (i < part ? 'filled' : 'empty');
+        el.appendChild(dot);
+    }
 }
 
 // ===== CROSSING TENS MODE =====
