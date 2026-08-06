@@ -1897,6 +1897,31 @@ body[data-screen="screen-game"] .global-stats-header {
     display: inline-block;
 }
 
+/* ===== MAKE-TEN HINT (on a wrong +/- answer) ===== */
+.hint {
+    width: 100%;
+    max-width: 440px;
+    margin: 4px auto 0;
+    padding: 0 16px;
+    text-align: center;
+    font-weight: 800;
+    font-size: 1rem;
+    line-height: 1.35;
+    color: var(--text);
+    background: var(--gold-light);
+    border-radius: 14px;
+    opacity: 0;
+    max-height: 0;
+    overflow: hidden;
+    transition: opacity 0.3s ease, max-height 0.3s ease, padding 0.3s ease;
+}
+
+.hint.show {
+    opacity: 1;
+    max-height: 140px;
+    padding: 12px 16px;
+}
+
 /* ===== RESUME BANNER (unfinished session) ===== */
 .resume-banner {
     display: flex;

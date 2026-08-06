@@ -59,7 +59,8 @@ const CONFIG = {
         wrong: 1800,         // wrong answer → next (longer: time to read the right answer)
         blitzCorrect: 450,   // correct, blitz
         blitzWrong: 900,     // wrong, blitz
-        crossingDone: 900    // "через десяток" problem solved → next
+        crossingDone: 900,   // "через десяток" problem solved → next
+        hint: 4200           // wrong +/- with a make-ten hint shown → time to read it
     }
 };
 
@@ -984,6 +985,8 @@ function nextProblem() {
 
     document.getElementById('feedback').textContent = '';
     document.getElementById('feedback').className = 'feedback';
+    const hintEl = document.getElementById('hint');
+    if (hintEl) { hintEl.textContent = ''; hintEl.classList.remove('show'); }
 
     const problemContainer = document.getElementById('problem-container');
     problemContainer.classList.remove('shake');
@@ -1334,6 +1337,21 @@ function awardCorrect(timeTaken) {
     return earned;
 }
 
+// Worked "make ten" explanation for a missed +/- fact (null if it doesn't cross the ten)
+function makeTenHint(a, b, op, answer) {
+    if (op === '+' && a < 10 && b < 10 && a + b > 10) {
+        const toTen = 10 - a;        // add this much to reach 10
+        const rest = b - toTen;      // the leftover
+        return `💡 ${a} + ${b}: спочатку до 10 → ${a} + ${toTen} = 10, лишилось ${rest} → 10 + ${rest} = ${answer}`;
+    }
+    if (op === '−' && a > 10 && answer < 10 && b > (a - 10)) {
+        const toTen = a - 10;        // subtract this much to reach 10
+        const rest = b - toTen;      // still to subtract
+        return `💡 ${a} − ${b}: спочатку до 10 → ${a} − ${toTen} = 10, ще ${rest} → 10 − ${rest} = ${answer}`;
+    }
+    return null;
+}
+
 // Exam answer: record the outcome silently and advance (no colour/emoji/reveal)
 function handleExamResult(correct, userAnswer) {
     if (correct) { state.score++; state.sessionCorrect++; }
@@ -1412,18 +1430,22 @@ function handleResult(correct, userAnswer, btnElement) {
         feedback.textContent = sadEmojis[Math.floor(Math.random() * sadEmojis.length)];
         feedback.className = 'feedback show';
 
+        // Teaching moment: show the "make ten" method for a missed +/- fact (extra time to read it)
+        let wrongDelay = CONFIG.pace.wrong;
+        if (['addition', 'subtraction', 'plusminus'].includes(state.mode)) {
+            const p = state.currentProblem;
+            const h = makeTenHint(p.a, p.b, p.opSymbol, p.answer);
+            if (h) {
+                const hintEl = document.getElementById('hint');
+                hintEl.textContent = h;
+                hintEl.classList.add('show');
+                wrongDelay = CONFIG.pace.hint;
+            }
+        }
+
         setTimeout(() => {
             answerDisplay.textContent = state.currentProblem.answer;
             answerDisplay.className = 'problem-answer correct';
-
-            if (state.inputMode === 'choices') {
-                for (let i = 0; i < 4; i++) {
-                    const btn = document.getElementById(`choice-${i}`);
-                    if (parseInt(btn.dataset.value) === state.currentProblem.answer) {
-                        btn.classList.add('correct');
-                    }
-                }
-            }
 
             if (state.inputMode === 'numpad') {
                 document.getElementById('numpad-display').textContent = 'Відповідь: ' + state.currentProblem.answer;
@@ -1431,7 +1453,7 @@ function handleResult(correct, userAnswer, btnElement) {
         }, 800);
 
         disableChoices();
-        setTimeout(nextProblem, state.mode === 'blitz' ? CONFIG.pace.blitzWrong : CONFIG.pace.wrong);
+        setTimeout(nextProblem, state.mode === 'blitz' ? CONFIG.pace.blitzWrong : wrongDelay);
     }
 }
 
