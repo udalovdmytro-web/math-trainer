@@ -3,7 +3,7 @@ const state = {
     mode: null,        // 'addition' | 'subtraction' | 'multiplication'
     maxNum: 20,        // limit for problems
     difficultyLabel: '',
-    inputMode: 'choices', // 'choices' | 'numpad'
+    inputMode: 'numpad', // answers are always typed
     currentProblem: null,
     score: 0,
     round: 0,
@@ -49,7 +49,6 @@ const CONFIG = {
     dailyGoal: 100,          // correct answers for the daily goal
     dailyBonus: 50,          // coins awarded on completing the daily goal
     easyMultDailyLimit: 1,   // ×2 / ×5 dedicated drills award coins only this many times per day (too easy to farm)
-    choicesPerDay: 1,        // multiple-choice ("Варіанти") sessions allowed per day; then typing only
     examMaxErrors: 2,        // exam is passed with fewer than 3 mistakes (i.e. ≤ this many)
     examPassBonus: 50,       // coins for passing the exam
     saveDebounceMs: 2000,    // coalesce Firebase writes within this window
@@ -335,7 +334,6 @@ function goToMenu() {
     }
     document.getElementById('crossing-container').style.display = 'none';
     document.getElementById('problem-container').style.display = '';
-    refreshInputModeLock();
     updateResumeBanner();
     showScreen('screen-menu');
 }
@@ -396,7 +394,7 @@ function resumeSession() {
     if (!s) return;
     state.mode = s.mode;
     state.difficultyLabel = s.difficultyLabel;
-    state.inputMode = s.inputMode;
+    state.inputMode = 'numpad';
     state.minA = s.minA; state.maxA = s.maxA; state.factors = s.factors;
     state.maxNum = s.maxNum; state.crossingTens = s.crossingTens; state.logicMode = s.logicMode;
     state.totalRounds = s.totalRounds;
@@ -422,33 +420,6 @@ function resumeSession() {
 
     showScreen('screen-game');
     nextProblem();
-}
-
-// ===== INPUT MODE =====
-function choicesLockedToday() {
-    return ((state.daily && state.daily.choicesUsed) || 0) >= CONFIG.choicesPerDay;
-}
-
-function setInputMode(mode) {
-    if (mode === 'choices' && choicesLockedToday()) {
-        showNotification('Варіанти на сьогодні все 😊', 'Варіанти можна раз на день. Далі вводь відповідь сам 💪', '⌨️');
-        return;
-    }
-    state.inputMode = mode;
-    document.getElementById('toggle-choices').classList.toggle('active', mode === 'choices');
-    document.getElementById('toggle-numpad').classList.toggle('active', mode === 'numpad');
-}
-
-// Reflect the "choices once per day" limit on the menu toggle (called when entering the menu)
-function refreshInputModeLock() {
-    const locked = choicesLockedToday();
-    const choicesBtn = document.getElementById('toggle-choices');
-    if (choicesBtn) {
-        choicesBtn.disabled = locked;
-        choicesBtn.classList.toggle('locked', locked);
-        choicesBtn.innerHTML = locked ? '🔒 Варіанти' : '🔘 Варіанти';
-    }
-    if (locked && state.inputMode === 'choices') setInputMode('numpad');
 }
 
 // ===== SUB-MENU =====
@@ -617,7 +588,6 @@ let blitzSeconds = 60;
 function startBlitzMode() {
     if (blockedBySession()) return; // finish the active session first
     state.mode = 'blitz';
-    enforceChoicesLimit();
     state.score = 0;
     state.sessionCorrect = 0;
     state.round = 0;
@@ -909,20 +879,7 @@ function shuffleArray(arr) {
 }
 
 // ===== GAME FLOW =====
-// One multiple-choice session per day, then typing only. Consumes the daily allowance
-// when a choices game starts (also covers "Ще раз!" / blitz, which bypass the menu).
-function enforceChoicesLimit() {
-    if (state.inputMode !== 'choices') return;
-    if (choicesLockedToday()) {
-        setInputMode('numpad');
-        return;
-    }
-    state.daily.choicesUsed = ((state.daily && state.daily.choicesUsed) || 0) + 1;
-    saveGame();
-}
-
 function startGame() {
-    enforceChoicesLimit();
     state.totalRounds = CONFIG.totalRounds; // reset (exam may have set it to 100)
     state.score = 0;
     state.round = 0;
