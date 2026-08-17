@@ -2065,15 +2065,16 @@ function showShop() {
     // Robux cards
     const robuxUsed = (state.daily && state.daily.robuxToday) || 0;
     const robuxLeft = Math.max(0, CONFIG.robuxDailyLimit - robuxUsed);
-    [[5, 50], [10, 100]].forEach(([robux, cost]) => {
+    [[5, 50], [10, 100], [500, 5000], [1000, 9000]].forEach(([robux, cost]) => {
         const btn = document.getElementById(`btn-buy-robux-${robux}`);
         document.getElementById(`msg-robux-${robux}-success`).style.display = 'none';
         document.getElementById(`msg-robux-${robux}-error`).style.display = 'none';
         if (!btn) return;
+        const smallExchange = robux <= CONFIG.robuxDailyLimit;
         if (state.coins < cost) {
             btn.textContent = 'Не вистачає монет';
             btn.classList.add('disabled'); btn.disabled = true;
-        } else if (robux > robuxLeft) {
+        } else if (smallExchange && robux > robuxLeft) {
             btn.textContent = 'Ліміт на сьогодні';
             btn.classList.add('disabled'); btn.disabled = true;
         } else {
@@ -2099,8 +2100,12 @@ function buyRobux(robux, cost) {
         setTimeout(() => buyBtn.classList.remove('shake'), 400);
     };
 
+    // Small treats (≤ daily limit) are capped per day; big milestone packs are exempt
+    // (they cost thousands of coins, so they're naturally rare).
+    const smallExchange = robux <= CONFIG.robuxDailyLimit;
+
     if (state.coins < cost) { fail('Потрібно більше монет!'); return; }
-    if (used + robux > CONFIG.robuxDailyLimit) {
+    if (smallExchange && used + robux > CONFIG.robuxDailyLimit) {
         fail(`Ліміт: ${CONFIG.robuxDailyLimit} Robux на день. Приходь завтра!`);
         return;
     }
@@ -2108,7 +2113,7 @@ function buyRobux(robux, cost) {
     state.coins -= cost;
     state.robuxOwed = (state.robuxOwed || 0) + robux;
     if (!state.daily) state.daily = {};
-    state.daily.robuxToday = used + robux;
+    if (smallExchange) state.daily.robuxToday = used + robux;
     updateEconomyUI();
     saveGame(true);
 

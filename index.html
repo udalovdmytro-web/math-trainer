@@ -12,7 +12,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="style.css?v=27">
+    <link rel="stylesheet" href="style.css?v=28">
     
     <!-- Firebase App (core) -->
     <script src="https://www.gstatic.com/firebasejs/10.9.0/firebase-app-compat.js"></script>
@@ -430,6 +430,37 @@
                     Потрібно більше монет!
                 </div>
             </div>
+
+            <div class="shop-card">
+                <div class="shop-icon" style="font-size: 4rem; line-height: 1;">🎁</div>
+                <h3 class="shop-item-title">500 Robux</h3>
+                <p class="shop-item-desc">Велика ціль: 5000 монет за 500 Robux</p>
+                <button class="buy-btn" onclick="buyRobux(500, 5000)" id="btn-buy-robux-500">
+                    Обміняти (5000 💰)
+                </button>
+                <div class="buy-success-msg" id="msg-robux-500-success" style="display:none; margin-top:10px;">
+                    ✨ +500 Robux до видачі! ✨
+                </div>
+                <div class="buy-error-msg" id="msg-robux-500-error" style="display:none; margin-top:10px;">
+                    Потрібно більше монет!
+                </div>
+            </div>
+
+            <div class="shop-card">
+                <div class="shop-discount-badge">−10%</div>
+                <div class="shop-icon" style="font-size: 4rem; line-height: 1;">🏆</div>
+                <h3 class="shop-item-title">1000 Robux</h3>
+                <p class="shop-item-desc">Мега-ціль зі знижкою: 9000 монет замість 10000!</p>
+                <button class="buy-btn" onclick="buyRobux(1000, 9000)" id="btn-buy-robux-1000">
+                    Обміняти (9000 💰)
+                </button>
+                <div class="buy-success-msg" id="msg-robux-1000-success" style="display:none; margin-top:10px;">
+                    ✨ +1000 Robux до видачі! ✨
+                </div>
+                <div class="buy-error-msg" id="msg-robux-1000-error" style="display:none; margin-top:10px;">
+                    Потрібно більше монет!
+                </div>
+            </div>
         </div>
         <p class="shop-note">💎 Robux нараховує тато в Roblox. Тут показано, скільки він винен.</p>
     </div>
@@ -462,7 +493,7 @@
         </div>
     </div>
 
-    <script src="firebase-config.js?v=27"></script>
-    <script src="main.js?v=27"></script>
+    <script src="firebase-config.js?v=28"></script>
+    <script src="main.js?v=28"></script>
 </body>
 </html>
