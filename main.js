@@ -71,12 +71,12 @@ const CONFIG = {
 // Per-mode metadata: label (UI/history), calendar color, and coin reward per correct answer.
 // crossingReward applies to the step-by-step "через десяток" variant of add/sub.
 const MODE_META = {
-    addition:       { icon: '➕',  label: 'Додавання',   color: 'var(--pink-light)', reward: 1, crossingReward: 2 },
-    subtraction:    { icon: '➖',  label: 'Віднімання',  color: 'var(--lavender)',   reward: 2, crossingReward: 3 },
-    multiplication: { icon: '✖️', label: 'Множення',    color: 'var(--mint)',       reward: 1 },
-    division:       { icon: '➗',  label: 'Ділення',     color: 'var(--sky)',        reward: 2 },
-    plusminus:      { icon: '➕➖', label: 'Плюс-мінус',  color: 'var(--peach)',      reward: 1 },
-    logic:          { icon: '🧩', label: 'Логіка',      color: 'var(--peach)',      reward: 3 },
+    addition:       { icon: '➕',  label: 'Додавання',   color: 'var(--pink-light)', reward: 3, crossingReward: 3 },
+    subtraction:    { icon: '➖',  label: 'Віднімання',  color: 'var(--lavender)',   reward: 3, crossingReward: 3 },
+    multiplication: { icon: '✖️', label: 'Множення',    color: 'var(--mint)',       reward: 3 },
+    division:       { icon: '➗',  label: 'Ділення',     color: 'var(--sky)',        reward: 3 },
+    plusminus:      { icon: '➕➖', label: 'Плюс-мінус',  color: 'var(--peach)',      reward: 3 },
+    logic:          { icon: '🧩', label: 'Логіка',      color: 'var(--peach)',      reward: 4 },
     blitz:          { icon: '⏱️', label: 'Бліц-Турнір', color: 'var(--yellow)',     reward: 1 },
     exam:           { icon: '📝', label: 'Екзамен',     color: 'var(--gold)' } // reward handled at completion
 };
@@ -525,6 +525,8 @@ function showSubMenu(mode) {
     submenuContainer.classList.toggle('dense', dense);
     document.getElementById('screen-submenu').classList.toggle('dense', dense);
 
+    // Badge reflects the actual per-answer coins (MODE_META), so it never drifts from reality
+    const modeReward = (MODE_META[mode] && MODE_META[mode].reward) || 1;
     config.options.forEach((opt, i) => {
         const card = document.createElement('div');
         card.className = 'difficulty-card slide-up';
@@ -533,7 +535,7 @@ function showSubMenu(mode) {
             <span class="diff-emoji">${opt.emoji}</span>
             <div class="diff-label">${opt.label}</div>
             <div class="diff-desc">${opt.desc}</div>
-            <div class="diff-reward">+${opt.reward} 💰</div>
+            <div class="diff-reward">+${modeReward} 💰</div>
         `;
         card.onclick = () => {
             if (opt.custom) { openMixModal(mode); return; } // let the child pick the numbers
