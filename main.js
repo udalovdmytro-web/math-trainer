@@ -34,6 +34,7 @@ const state = {
     coins: 0,
     combo: 0,
     robloxTime: 0,
+    robuxOwed: 0, // Robux the child has earned and the parent still owes (delivered manually)
     daily: { date: '', count: 0, streak: 0, multLimits: {}, choicesUsed: 0 },
     achievements: [],
     blitzRecord: 0,
@@ -52,6 +53,8 @@ const CONFIG = {
     easyMultDailyLimit: 1,   // ×2 / ×5 dedicated drills award coins only this many times per day (too easy to farm)
     examMaxErrors: 2,        // exam is passed with fewer than 3 mistakes (i.e. ≤ this many)
     examPassBonus: 50,       // coins for passing the exam
+    robuxRate: 10,           // coins per 1 Robux
+    robuxDailyLimit: 30,     // max Robux the child can exchange per day (budget guard)
     saveDebounceMs: 2000,    // coalesce Firebase writes within this window
     historyCap: 400,         // keep only the most recent N sessions (Firestore doc size)
     // Delay (ms) after an answer before the next problem appears — tune the pacing here
@@ -88,6 +91,7 @@ async function saveToFirebase() {
             coins: state.coins,
             combo: state.combo,
             robloxTime: state.robloxTime,
+            robuxOwed: state.robuxOwed || 0,
             daily: state.daily,
             achievements: state.achievements,
             blitzRecord: state.blitzRecord,
@@ -130,7 +134,9 @@ function updateEconomyUI() {
     // Shop
     const shopCoins = document.getElementById('shop-coins');
     if (shopCoins) shopCoins.textContent = state.coins;
-    
+    const shopRobux = document.getElementById('shop-robux');
+    if (shopRobux) shopRobux.textContent = state.robuxOwed || 0;
+
     // Global Header
     const globCoins = document.getElementById('global-total-coins');
     if (globCoins) globCoins.textContent = state.coins;
@@ -171,6 +177,7 @@ function checkDailyReset() {
         state.daily.date = today;
         state.daily.multLimits = {};
         state.daily.choicesUsed = 0;
+        state.daily.robuxToday = 0;
         saveGame(true);
     }
     updateDailyUI();
@@ -233,6 +240,7 @@ async function handleLogin() {
             state.coins = data.coins || 0;
             state.combo = data.combo || 0;
             state.robloxTime = data.robloxTime || data.robux || 0;
+            state.robuxOwed = data.robuxOwed || 0;
             state.daily = data.daily || { date: '', count: 0, streak: 0, multLimits: {}, choicesUsed: 0 };
             if (!state.daily.multLimits) state.daily.multLimits = {};
             state.achievements = data.achievements || [];
@@ -245,13 +253,14 @@ async function handleLogin() {
             state.coins = 0;
             state.combo = 0;
             state.robloxTime = 0;
+            state.robuxOwed = 0;
             state.daily = { date: '', count: 0, streak: 0, multLimits: {}, choicesUsed: 0 };
             state.achievements = [];
             state.blitzRecord = 0;
             state.history = [];
             state.stats = {};
             state.session = null;
-            await docRef.set({ coins: 0, combo: 0, robloxTime: 0, daily: state.daily, achievements: [], blitzRecord: 0, history: [], stats: {}, activeSession: null });
+            await docRef.set({ coins: 0, combo: 0, robloxTime: 0, robuxOwed: 0, daily: state.daily, achievements: [], blitzRecord: 0, history: [], stats: {}, activeSession: null });
         }
         
         state.userId = pin;
@@ -2052,8 +2061,66 @@ function showShop() {
         btn60.classList.add('disabled');
         btn60.disabled = true;
     }
-    
+
+    // Robux cards
+    const robuxUsed = (state.daily && state.daily.robuxToday) || 0;
+    const robuxLeft = Math.max(0, CONFIG.robuxDailyLimit - robuxUsed);
+    [[5, 50], [10, 100]].forEach(([robux, cost]) => {
+        const btn = document.getElementById(`btn-buy-robux-${robux}`);
+        document.getElementById(`msg-robux-${robux}-success`).style.display = 'none';
+        document.getElementById(`msg-robux-${robux}-error`).style.display = 'none';
+        if (!btn) return;
+        if (state.coins < cost) {
+            btn.textContent = 'Не вистачає монет';
+            btn.classList.add('disabled'); btn.disabled = true;
+        } else if (robux > robuxLeft) {
+            btn.textContent = 'Ліміт на сьогодні';
+            btn.classList.add('disabled'); btn.disabled = true;
+        } else {
+            btn.textContent = `Обміняти (${cost} 💰)`;
+            btn.classList.remove('disabled'); btn.disabled = false;
+        }
+    });
+
     showScreen('screen-shop');
+}
+
+function buyRobux(robux, cost) {
+    const buyBtn = document.getElementById(`btn-buy-robux-${robux}`);
+    const successMsg = document.getElementById(`msg-robux-${robux}-success`);
+    const errorMsg = document.getElementById(`msg-robux-${robux}-error`);
+    const used = (state.daily && state.daily.robuxToday) || 0;
+
+    const fail = (text) => {
+        errorMsg.textContent = text;
+        errorMsg.style.display = 'block';
+        successMsg.style.display = 'none';
+        buyBtn.classList.add('shake');
+        setTimeout(() => buyBtn.classList.remove('shake'), 400);
+    };
+
+    if (state.coins < cost) { fail('Потрібно більше монет!'); return; }
+    if (used + robux > CONFIG.robuxDailyLimit) {
+        fail(`Ліміт: ${CONFIG.robuxDailyLimit} Robux на день. Приходь завтра!`);
+        return;
+    }
+
+    state.coins -= cost;
+    state.robuxOwed = (state.robuxOwed || 0) + robux;
+    if (!state.daily) state.daily = {};
+    state.daily.robuxToday = used + robux;
+    updateEconomyUI();
+    saveGame(true);
+
+    successMsg.style.display = 'block';
+    errorMsg.style.display = 'none';
+    setTimeout(launchConfetti, 100);
+    setTimeout(launchConfetti, 500);
+    setTimeout(() => {
+        showShop();
+        successMsg.style.display = 'block';
+        setTimeout(() => successMsg.style.display = 'none', 3000);
+    }, 100);
 }
 
 function buyRobloxTime(minutes, cost) {

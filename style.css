@@ -1508,6 +1508,29 @@ body {
     color: var(--text);
 }
 
+.shop-header .economy-item.large {
+    display: inline-flex;
+    margin: 0 6px;
+}
+
+.shop-section-title {
+    font-size: 1.4rem;
+    font-weight: 900;
+    color: var(--text);
+    margin: 26px 0 12px;
+    text-align: center;
+}
+
+.shop-note {
+    width: 100%;
+    max-width: 420px;
+    margin: 14px auto 0;
+    text-align: center;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--text-light);
+}
+
 .shop-container {
     width: 100%;
     max-width: 420px;

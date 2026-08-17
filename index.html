@@ -12,7 +12,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="style.css?v=26">
+    <link rel="stylesheet" href="style.css?v=27">
     
     <!-- Firebase App (core) -->
     <script src="https://www.gstatic.com/firebasejs/10.9.0/firebase-app-compat.js"></script>
@@ -355,6 +355,10 @@
                 <span class="economy-icon">💰</span>
                 <span class="economy-value" id="shop-coins">0</span>
             </div>
+            <div class="economy-item large" title="Robux до видачі">
+                <span class="economy-icon">💎</span>
+                <span class="economy-value" id="shop-robux">0</span>
+            </div>
         </div>
         
         <div class="shop-container" style="display: flex; gap: 15px; flex-wrap: wrap; justify-content: center;">
@@ -394,6 +398,40 @@
                 </div>
             </div>
         </div>
+
+        <h3 class="shop-section-title">💎 Robux для Roblox</h3>
+        <div class="shop-container" style="display: flex; gap: 15px; flex-wrap: wrap; justify-content: center;">
+            <div class="shop-card">
+                <div class="shop-icon" style="font-size: 4rem; line-height: 1;">💎</div>
+                <h3 class="shop-item-title">5 Robux</h3>
+                <p class="shop-item-desc">Обміняй 50 монет на 5 Robux</p>
+                <button class="buy-btn" onclick="buyRobux(5, 50)" id="btn-buy-robux-5">
+                    Обміняти (50 💰)
+                </button>
+                <div class="buy-success-msg" id="msg-robux-5-success" style="display:none; margin-top:10px;">
+                    ✨ +5 Robux до видачі! ✨
+                </div>
+                <div class="buy-error-msg" id="msg-robux-5-error" style="display:none; margin-top:10px;">
+                    Потрібно більше монет!
+                </div>
+            </div>
+
+            <div class="shop-card">
+                <div class="shop-icon" style="font-size: 4rem; line-height: 1;">💠</div>
+                <h3 class="shop-item-title">10 Robux</h3>
+                <p class="shop-item-desc">Обміняй 100 монет на 10 Robux</p>
+                <button class="buy-btn" onclick="buyRobux(10, 100)" id="btn-buy-robux-10">
+                    Обміняти (100 💰)
+                </button>
+                <div class="buy-success-msg" id="msg-robux-10-success" style="display:none; margin-top:10px;">
+                    ✨ +10 Robux до видачі! ✨
+                </div>
+                <div class="buy-error-msg" id="msg-robux-10-error" style="display:none; margin-top:10px;">
+                    Потрібно більше монет!
+                </div>
+            </div>
+        </div>
+        <p class="shop-note">💎 Robux нараховує тато в Roblox. Тут показано, скільки він винен.</p>
     </div>
 
     <!-- Firebase config and main logic -->
@@ -424,7 +462,7 @@
         </div>
     </div>
 
-    <script src="firebase-config.js?v=26"></script>
-    <script src="main.js?v=26"></script>
+    <script src="firebase-config.js?v=27"></script>
+    <script src="main.js?v=27"></script>
 </body>
 </html>
