@@ -1452,12 +1452,14 @@ function showCompletion() {
     showScreen('screen-complete');
 
     const celebrate = isExam ? examPassed : percent >= 60;
-    if (celebrate) {
+    const perfect = total > 0 && correct === total; // жодної помилки за всю сесію
+    if (perfect) {
+        // Великий салют на весь екран + конфеті
         setTimeout(launchConfetti, 300);
-        if (isExam ? examErrors === 0 : percent === 100) {
-            setTimeout(launchConfetti, 800);
-            setTimeout(launchConfetti, 1300);
-        }
+        setTimeout(launchFireworks, 400);
+        setTimeout(launchConfetti, 1300);
+    } else if (celebrate) {
+        setTimeout(launchConfetti, 300);
     }
 
     document.getElementById('progress-bar').style.width = '100%';
@@ -1696,11 +1698,14 @@ function animateConfetti() {
     confettiCtx.clearRect(0, 0, confettiCanvas.width, confettiCanvas.height);
 
     confettiPieces = confettiPieces.filter(p => p.opacity > 0);
+    fireworkParticles = fireworkParticles.filter(p => p.life > 0);
 
-    if (confettiPieces.length === 0) {
+    if (confettiPieces.length === 0 && fireworkParticles.length === 0) {
         confettiAnimating = false;
         return;
     }
+
+    drawFireworkParticles();
 
     confettiPieces.forEach(p => {
         p.x += p.vx;
@@ -1725,6 +1730,90 @@ function animateConfetti() {
     });
 
     requestAnimationFrame(animateConfetti);
+}
+
+// --- Fireworks (великий салют за ідеальний результат) ---
+// Shares the confetti canvas and animation loop: particles live in fireworkParticles
+// and are drawn by drawFireworkParticles() inside animateConfetti().
+let fireworkParticles = [];
+
+const FIREWORK_COLORS = [
+    '#FF5E7E', '#FFD447', '#7DFFB0', '#5ECBFF',
+    '#C58BFF', '#FF9C5E', '#FFF7A1', '#FF7EEB',
+];
+
+function spawnFireworkBurst(x, y) {
+    const color = FIREWORK_COLORS[Math.floor(Math.random() * FIREWORK_COLORS.length)];
+    const color2 = FIREWORK_COLORS[Math.floor(Math.random() * FIREWORK_COLORS.length)];
+    const count = 55 + Math.floor(Math.random() * 25);
+    for (let i = 0; i < count; i++) {
+        const angle = (Math.PI * 2 * i) / count + Math.random() * 0.2;
+        const speed = 2.5 + Math.random() * 6;
+        fireworkParticles.push({
+            x, y,
+            vx: Math.cos(angle) * speed,
+            vy: Math.sin(angle) * speed,
+            size: 3 + Math.random() * 3,
+            color: Math.random() < 0.5 ? color : color2,
+            life: 1,
+            decay: 0.007 + Math.random() * 0.011,
+        });
+    }
+    // короткий яскравий спалах у центрі залпу
+    fireworkParticles.push({
+        x, y, vx: 0, vy: 0,
+        size: 26 + Math.random() * 14,
+        color: '#FFFFFF',
+        life: 1,
+        decay: 0.09,
+        flash: true,
+    });
+}
+
+function launchFireworks() {
+    // 10 залпів по всьому екрану впродовж ~3 секунд
+    const bursts = 10;
+    for (let i = 0; i < bursts; i++) {
+        setTimeout(() => {
+            const x = confettiCanvas.width * (0.1 + Math.random() * 0.8);
+            const y = confettiCanvas.height * (0.12 + Math.random() * 0.5);
+            spawnFireworkBurst(x, y);
+            if (!confettiAnimating) {
+                confettiAnimating = true;
+                animateConfetti();
+            }
+        }, i * 320);
+    }
+}
+
+function drawFireworkParticles() {
+    if (fireworkParticles.length === 0) return;
+    confettiCtx.save();
+    fireworkParticles.forEach(p => {
+        p.x += p.vx;
+        p.y += p.vy;
+        p.vx *= 0.985;
+        p.vy = p.vy * 0.985 + 0.05; // drag + gravity
+        p.life -= p.decay;
+
+        // twinkle as the spark burns out
+        const alpha = p.life < 0.35 && Math.random() < 0.3 ? p.life * 0.3 : p.life;
+        const a = Math.max(0, alpha);
+        const r = p.size * (0.5 + p.life * 0.5);
+        confettiCtx.fillStyle = p.color;
+
+        // soft halo behind the bright core (cheaper than shadowBlur on mobile)
+        confettiCtx.globalAlpha = a * 0.3;
+        confettiCtx.beginPath();
+        confettiCtx.arc(p.x, p.y, r * 2.4, 0, Math.PI * 2);
+        confettiCtx.fill();
+
+        confettiCtx.globalAlpha = a;
+        confettiCtx.beginPath();
+        confettiCtx.arc(p.x, p.y, r, 0, Math.PI * 2);
+        confettiCtx.fill();
+    });
+    confettiCtx.restore();
 }
 
 // --- Floating Decorations ---
