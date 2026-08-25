@@ -35,7 +35,7 @@ const state = {
     combo: 0,
     robloxTime: 0,
     robuxOwed: 0, // Robux the child has earned and the parent still owes (delivered manually)
-    daily: { date: '', count: 0, streak: 0, multLimits: {}, choicesUsed: 0 },
+    daily: { date: '', count: 0, streak: 0, tasksDone: 0, multLimits: {}, choicesUsed: 0 },
     achievements: [],
     blitzRecord: 0,
     history: [],
@@ -48,8 +48,10 @@ const state = {
 // ===== CONFIG (single source of truth) =====
 const CONFIG = {
     totalRounds: 20,
-    dailyGoal: 100,          // correct answers for the daily goal
-    dailyBonus: 50,          // coins awarded on completing the daily goal
+    dailyGoal: 100,          // legacy (v1 goal of 100 answers); kept to migrate old saves' streaks
+    dailyBonus: 50,          // coins for the FIRST completed daily task each day (also grows the streak)
+    dailyRepeatBonus: 15,    // coins for every following completed daily task the same day
+    dailyTaskMinAnswers: 10, // blitz counts toward the daily task only with at least this many answers
     easyMultDailyLimit: 1,   // ×2 / ×5 dedicated drills award coins only this many times per day (too easy to farm)
     examMaxErrors: 2,        // exam is passed with fewer than 3 mistakes (i.e. ≤ this many)
     examPassBonus: 50,       // coins for passing the exam
@@ -145,22 +147,43 @@ function updateEconomyUI() {
 }
 
 function updateDailyUI() {
-    const dailyCount = document.getElementById('daily-count');
+    const dailyTitle = document.getElementById('daily-title');
     const dailyStreak = document.getElementById('daily-streak');
-    const dailyFill = document.getElementById('daily-progress-fill');
-    
-    if (dailyCount) dailyCount.textContent = state.daily.count;
+    const dailyMedals = document.getElementById('daily-medals');
+
+    const done = (state.daily && state.daily.tasksDone) || 0;
+    if (dailyTitle) dailyTitle.textContent = `🎯 Завдання дня №${done + 1}`;
     if (dailyStreak) dailyStreak.textContent = state.daily.streak;
-    
-    if (dailyFill) {
-        let pct = Math.min(100, Math.round((state.daily.count / CONFIG.dailyGoal) * 100));
-        dailyFill.style.width = pct + '%';
-        if (pct === 100) {
-            dailyFill.style.background = 'var(--gold)';
+    if (dailyMedals) {
+        if (done === 0) {
+            dailyMedals.innerHTML = '<span class="daily-medals-empty">Тут з\'являться твої медалі</span>';
+        } else if (done <= 12) {
+            dailyMedals.textContent = '🏅'.repeat(done);
         } else {
-            dailyFill.style.background = 'var(--mint)';
+            dailyMedals.textContent = `🏅 × ${done}`;
         }
     }
+}
+
+// «Завдання дня» — нескінченний ланцюжок: рівень, пройдений повністю без помилок,
+// закриває поточне завдання, і одразу з'являється наступне. Перше виконане завдання
+// за день дає dailyBonus і рухає серію, наступні — dailyRepeatBonus.
+function completeDailyTask() {
+    if (!state.daily) return;
+    if (typeof state.daily.tasksDone !== 'number') state.daily.tasksDone = 0;
+    const first = state.daily.tasksDone === 0;
+    state.daily.tasksDone++;
+    if (first) state.daily.streak++;
+    const bonus = first ? CONFIG.dailyBonus : CONFIG.dailyRepeatBonus;
+    state.coins += bonus;
+    const n = state.daily.tasksDone;
+    setTimeout(() => showNotification(
+        `Завдання дня №${n} виконано! 🏅`,
+        `+${bonus} монет!` + (first ? ` Серія: ${state.daily.streak} дн.` : '') + ' Нове завдання вже чекає 😉',
+        '🎯'), 600);
+    updateDailyUI();
+    updateEconomyUI();
+    saveGame(true);
 }
 
 function checkDailyReset() {
@@ -170,10 +193,12 @@ function checkDailyReset() {
         yesterday.setDate(yesterday.getDate() - 1);
         const yesterdayStr = yesterday.toLocaleDateString('en-CA');
         
-        if (state.daily.date !== yesterdayStr || state.daily.count < CONFIG.dailyGoal) {
+        // Серія зберігається, якщо вчора було виконано хоча б одне завдання дня
+        if (state.daily.date !== yesterdayStr || (state.daily.tasksDone || 0) < 1) {
             state.daily.streak = 0;
         }
         state.daily.count = 0;
+        state.daily.tasksDone = 0;
         state.daily.date = today;
         state.daily.multLimits = {};
         state.daily.choicesUsed = 0;
@@ -241,8 +266,12 @@ async function handleLogin() {
             state.combo = data.combo || 0;
             state.robloxTime = data.robloxTime || data.robux || 0;
             state.robuxOwed = data.robuxOwed || 0;
-            state.daily = data.daily || { date: '', count: 0, streak: 0, multLimits: {}, choicesUsed: 0 };
+            state.daily = data.daily || { date: '', count: 0, streak: 0, tasksDone: 0, multLimits: {}, choicesUsed: 0 };
             if (!state.daily.multLimits) state.daily.multLimits = {};
+            if (typeof state.daily.tasksDone !== 'number') {
+                // Міграція зі старої механіки (100 відповідей/день): досягнута стара ціль = 1 виконане завдання
+                state.daily.tasksDone = (state.daily.count || 0) >= CONFIG.dailyGoal ? 1 : 0;
+            }
             state.achievements = data.achievements || [];
             state.blitzRecord = data.blitzRecord || 0;
             state.history = data.history || [];
@@ -254,7 +283,7 @@ async function handleLogin() {
             state.combo = 0;
             state.robloxTime = 0;
             state.robuxOwed = 0;
-            state.daily = { date: '', count: 0, streak: 0, multLimits: {}, choicesUsed: 0 };
+            state.daily = { date: '', count: 0, streak: 0, tasksDone: 0, multLimits: {}, choicesUsed: 0 };
             state.achievements = [];
             state.blitzRecord = 0;
             state.history = [];
@@ -1366,8 +1395,8 @@ function enableCrossingNumpad(enabled) {
 }
 
 // Shared reward pipeline for a correct answer (both normal and "через десяток" modes).
-// Handles combo, coins (+ ×/÷ anti-abuse), the daily goal/bonus/streak, achievements,
-// the economy UI and persistence. Returns coins earned. Single source of truth.
+// Handles combo, coins (+ ×/÷ anti-abuse), achievements, the economy UI and
+// persistence. Daily-task credit lives in completeDailyTask(). Returns coins earned.
 function awardCorrect(timeTaken) {
     state.combo++;
 
@@ -1393,16 +1422,9 @@ function awardCorrect(timeTaken) {
 
     state.coins += earned;
 
-    // Daily goal → bonus + streak
-    if (state.daily && state.daily.count < CONFIG.dailyGoal) {
-        state.daily.count++;
-        if (state.daily.count === CONFIG.dailyGoal) {
-            state.daily.streak++;
-            state.coins += CONFIG.dailyBonus;
-            setTimeout(() => showNotification('Завдання дня виконано!', `+${CONFIG.dailyBonus} монет! Серія: ${state.daily.streak} дн.`, '🎯'), 500);
-        }
-        updateDailyUI();
-    }
+    // Лічильник правильних за день (сама нагорода за «завдання дня» — в completeDailyTask,
+    // яке закривається лише рівнем без жодної помилки)
+    if (state.daily) state.daily.count++;
 
     if (typeof checkAchievements === 'function') checkAchievements(timeTaken);
     updateEconomyUI();
@@ -1674,12 +1696,18 @@ function showCompletion() {
     showScreen('screen-complete');
 
     const celebrate = isExam ? examPassed : percent >= 60;
-    if (celebrate) {
-        setTimeout(launchConfetti, 300);
-        if (isExam ? examErrors === 0 : percent === 100) {
-            setTimeout(launchConfetti, 800);
-            setTimeout(launchConfetti, 1300);
+    const perfect = total > 0 && correct === total; // жодної помилки за всю сесію
+    if (perfect) {
+        // Ідеальний рівень закриває поточне «завдання дня» (бліц — лише якщо відповідей достатньо)
+        if (state.mode !== 'blitz' || total >= CONFIG.dailyTaskMinAnswers) {
+            completeDailyTask();
         }
+        // Великий салют на весь екран + конфеті
+        setTimeout(launchConfetti, 300);
+        setTimeout(launchFireworks, 400);
+        setTimeout(launchConfetti, 1300);
+    } else if (celebrate) {
+        setTimeout(launchConfetti, 300);
     }
 
     document.getElementById('progress-bar').style.width = '100%';
@@ -1918,11 +1946,14 @@ function animateConfetti() {
     confettiCtx.clearRect(0, 0, confettiCanvas.width, confettiCanvas.height);
 
     confettiPieces = confettiPieces.filter(p => p.opacity > 0);
+    fireworkParticles = fireworkParticles.filter(p => p.life > 0);
 
-    if (confettiPieces.length === 0) {
+    if (confettiPieces.length === 0 && fireworkParticles.length === 0) {
         confettiAnimating = false;
         return;
     }
+
+    drawFireworkParticles();
 
     confettiPieces.forEach(p => {
         p.x += p.vx;
@@ -1947,6 +1978,90 @@ function animateConfetti() {
     });
 
     requestAnimationFrame(animateConfetti);
+}
+
+// --- Fireworks (великий салют за ідеальний результат) ---
+// Shares the confetti canvas and animation loop: particles live in fireworkParticles
+// and are drawn by drawFireworkParticles() inside animateConfetti().
+let fireworkParticles = [];
+
+const FIREWORK_COLORS = [
+    '#FF5E7E', '#FFD447', '#7DFFB0', '#5ECBFF',
+    '#C58BFF', '#FF9C5E', '#FFF7A1', '#FF7EEB',
+];
+
+function spawnFireworkBurst(x, y) {
+    const color = FIREWORK_COLORS[Math.floor(Math.random() * FIREWORK_COLORS.length)];
+    const color2 = FIREWORK_COLORS[Math.floor(Math.random() * FIREWORK_COLORS.length)];
+    const count = 55 + Math.floor(Math.random() * 25);
+    for (let i = 0; i < count; i++) {
+        const angle = (Math.PI * 2 * i) / count + Math.random() * 0.2;
+        const speed = 2.5 + Math.random() * 6;
+        fireworkParticles.push({
+            x, y,
+            vx: Math.cos(angle) * speed,
+            vy: Math.sin(angle) * speed,
+            size: 3 + Math.random() * 3,
+            color: Math.random() < 0.5 ? color : color2,
+            life: 1,
+            decay: 0.007 + Math.random() * 0.011,
+        });
+    }
+    // короткий яскравий спалах у центрі залпу
+    fireworkParticles.push({
+        x, y, vx: 0, vy: 0,
+        size: 26 + Math.random() * 14,
+        color: '#FFFFFF',
+        life: 1,
+        decay: 0.09,
+        flash: true,
+    });
+}
+
+function launchFireworks() {
+    // 10 залпів по всьому екрану впродовж ~3 секунд
+    const bursts = 10;
+    for (let i = 0; i < bursts; i++) {
+        setTimeout(() => {
+            const x = confettiCanvas.width * (0.1 + Math.random() * 0.8);
+            const y = confettiCanvas.height * (0.12 + Math.random() * 0.5);
+            spawnFireworkBurst(x, y);
+            if (!confettiAnimating) {
+                confettiAnimating = true;
+                animateConfetti();
+            }
+        }, i * 320);
+    }
+}
+
+function drawFireworkParticles() {
+    if (fireworkParticles.length === 0) return;
+    confettiCtx.save();
+    fireworkParticles.forEach(p => {
+        p.x += p.vx;
+        p.y += p.vy;
+        p.vx *= 0.985;
+        p.vy = p.vy * 0.985 + 0.05; // drag + gravity
+        p.life -= p.decay;
+
+        // twinkle as the spark burns out
+        const alpha = p.life < 0.35 && Math.random() < 0.3 ? p.life * 0.3 : p.life;
+        const a = Math.max(0, alpha);
+        const r = p.size * (0.5 + p.life * 0.5);
+        confettiCtx.fillStyle = p.color;
+
+        // soft halo behind the bright core (cheaper than shadowBlur on mobile)
+        confettiCtx.globalAlpha = a * 0.3;
+        confettiCtx.beginPath();
+        confettiCtx.arc(p.x, p.y, r * 2.4, 0, Math.PI * 2);
+        confettiCtx.fill();
+
+        confettiCtx.globalAlpha = a;
+        confettiCtx.beginPath();
+        confettiCtx.arc(p.x, p.y, r, 0, Math.PI * 2);
+        confettiCtx.fill();
+    });
+    confettiCtx.restore();
 }
 
 // --- Floating Decorations ---

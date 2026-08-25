@@ -12,7 +12,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="style.css?v=29">
+    <link rel="stylesheet" href="style.css?v=30">
     
     <!-- Firebase App (core) -->
     <script src="https://www.gstatic.com/firebasejs/10.9.0/firebase-app-compat.js"></script>
@@ -87,13 +87,11 @@
             </div>
         </div>
 
-        <!-- Daily Progress -->
+        <!-- Daily Task (endless chain: a zero-mistake level completes one, the next appears) -->
         <div class="daily-panel card-panel">
-            <h3 class="daily-title">🎯 Завдання дня</h3>
-            <div class="daily-progress-container">
-                <div class="daily-progress-fill" id="daily-progress-fill"></div>
-            </div>
-            <p class="daily-text"><span id="daily-count">0</span> / 100 правильних відповідей</p>
+            <h3 class="daily-title" id="daily-title">🎯 Завдання дня №1</h3>
+            <p class="daily-text">Пройди рівень повністю без помилок!</p>
+            <div class="daily-medals" id="daily-medals"></div>
             <p class="daily-streak">🔥 Твоя серія: <span id="daily-streak">0</span> дн.</p>
         </div>
 
@@ -493,7 +491,7 @@
         </div>
     </div>
 
-    <script src="firebase-config.js?v=29"></script>
-    <script src="main.js?v=29"></script>
+    <script src="firebase-config.js?v=30"></script>
+    <script src="main.js?v=30"></script>
 </body>
 </html>
