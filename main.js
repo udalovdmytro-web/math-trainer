@@ -72,12 +72,12 @@ const CONFIG = {
 // Per-mode metadata: label (UI/history), calendar color, and coin reward per correct answer.
 // crossingReward applies to the step-by-step "через десяток" variant of add/sub.
 const MODE_META = {
-    addition:       { icon: '➕',  label: 'Додавання',   color: 'var(--pink-light)', reward: 3, crossingReward: 3 },
-    subtraction:    { icon: '➖',  label: 'Віднімання',  color: 'var(--lavender)',   reward: 3, crossingReward: 3 },
-    multiplication: { icon: '✖️', label: 'Множення',    color: 'var(--mint)',       reward: 3 },
-    division:       { icon: '➗',  label: 'Ділення',     color: 'var(--sky)',        reward: 3 },
-    plusminus:      { icon: '➕➖', label: 'Плюс-мінус',  color: 'var(--peach)',      reward: 3 },
-    logic:          { icon: '🧩', label: 'Логіка',      color: 'var(--peach)',      reward: 4 },
+    addition:       { icon: '➕',  label: 'Додавання',   color: 'var(--pink-light)', reward: 2, crossingReward: 2 },
+    subtraction:    { icon: '➖',  label: 'Віднімання',  color: 'var(--lavender)',   reward: 2, crossingReward: 2 },
+    multiplication: { icon: '✖️', label: 'Множення',    color: 'var(--mint)',       reward: 2 },
+    division:       { icon: '➗',  label: 'Ділення',     color: 'var(--sky)',        reward: 2 },
+    plusminus:      { icon: '➕➖', label: 'Плюс-мінус',  color: 'var(--peach)',      reward: 2 },
+    logic:          { icon: '🧩', label: 'Логіка',      color: 'var(--peach)',      reward: 3 },
     blitz:          { icon: '⏱️', label: 'Бліц-Турнір', color: 'var(--yellow)',     reward: 1 },
     exam:           { icon: '📝', label: 'Екзамен',     color: 'var(--gold)' } // reward handled at completion
 };
