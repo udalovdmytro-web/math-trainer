@@ -51,7 +51,6 @@ const CONFIG = {
     dailyGoal: 100,          // legacy (v1 goal of 100 answers); kept to migrate old saves' streaks
     dailyBonus: 50,          // coins for the FIRST completed daily task each day (also grows the streak)
     dailyRepeatBonus: 15,    // coins for every following completed daily task the same day
-    dailyTaskMinAnswers: 10, // blitz counts toward the daily task only with at least this many answers
     easyMultDailyLimit: 1,   // ×2 / ×5 dedicated drills award coins only this many times per day (too easy to farm)
     examMaxErrors: 2,        // exam is passed with fewer than 3 mistakes (i.e. ≤ this many)
     examPassBonus: 50,       // coins for passing the exam
@@ -146,13 +145,31 @@ function updateEconomyUI() {
     if (globRobloxTime) globRobloxTime.textContent = state.robloxTime;
 }
 
+// Режими, які по черзі стають «завданням дня» (бліц та екзамен — ні)
+const DAILY_TASK_MODES = ['addition', 'multiplication', 'subtraction', 'logic', 'division', 'plusminus'];
+
+// Який режим потрібен для поточного завдання дня. Порядок стабільний упродовж дня,
+// але щодня починається з іншого режиму (зсув рахуємо з дати) — щоб не приїдалось.
+function dailyTaskMode() {
+    const d = (state.daily && state.daily.date) || new Date().toLocaleDateString('en-CA');
+    let seed = 0;
+    for (let i = 0; i < d.length; i++) seed = (seed * 31 + d.charCodeAt(i)) % 997;
+    const done = (state.daily && state.daily.tasksDone) || 0;
+    return DAILY_TASK_MODES[(seed + done) % DAILY_TASK_MODES.length];
+}
+
 function updateDailyUI() {
     const dailyTitle = document.getElementById('daily-title');
+    const dailyDesc = document.getElementById('daily-task-desc');
     const dailyStreak = document.getElementById('daily-streak');
     const dailyMedals = document.getElementById('daily-medals');
 
     const done = (state.daily && state.daily.tasksDone) || 0;
     if (dailyTitle) dailyTitle.textContent = `🎯 Завдання дня №${done + 1}`;
+    if (dailyDesc) {
+        const meta = MODE_META[dailyTaskMode()] || {};
+        dailyDesc.innerHTML = `Пройди рівень <b>${meta.icon || ''} ${meta.label || ''}</b> без помилок!`;
+    }
     if (dailyStreak) dailyStreak.textContent = state.daily.streak;
     if (dailyMedals) {
         if (done === 0) {
@@ -165,9 +182,10 @@ function updateDailyUI() {
     }
 }
 
-// «Завдання дня» — нескінченний ланцюжок: рівень, пройдений повністю без помилок,
-// закриває поточне завдання, і одразу з'являється наступне. Перше виконане завдання
-// за день дає dailyBonus і рухає серію, наступні — dailyRepeatBonus.
+// «Завдання дня» — нескінченний ланцюжок: рівень ПОТРІБНОГО режиму (dailyTaskMode),
+// пройдений повністю без помилок, закриває поточне завдання, і одразу з'являється
+// наступне — вже з іншим режимом, щоб дитина не проходила одне й те саме.
+// Перше виконане завдання за день дає dailyBonus і рухає серію, наступні — dailyRepeatBonus.
 function completeDailyTask() {
     if (!state.daily) return;
     if (typeof state.daily.tasksDone !== 'number') state.daily.tasksDone = 0;
@@ -177,9 +195,11 @@ function completeDailyTask() {
     const bonus = first ? CONFIG.dailyBonus : CONFIG.dailyRepeatBonus;
     state.coins += bonus;
     const n = state.daily.tasksDone;
+    const nextMeta = MODE_META[dailyTaskMode()] || {};
     setTimeout(() => showNotification(
         `Завдання дня №${n} виконано! 🏅`,
-        `+${bonus} монет!` + (first ? ` Серія: ${state.daily.streak} дн.` : '') + ' Нове завдання вже чекає 😉',
+        `+${bonus} монет!` + (first ? ` Серія: ${state.daily.streak} дн.` : '') +
+        ` Наступне завдання: ${nextMeta.icon || ''} ${nextMeta.label || ''} 😉`,
         '🎯'), 600);
     updateDailyUI();
     updateEconomyUI();
@@ -1698,11 +1718,17 @@ function showCompletion() {
     const celebrate = isExam ? examPassed : percent >= 60;
     const perfect = total > 0 && correct === total; // жодної помилки за всю сесію
     if (perfect) {
-        // Ідеальний рівень закриває поточне «завдання дня» (бліц — лише якщо відповідей достатньо)
-        if (state.mode !== 'blitz' || total >= CONFIG.dailyTaskMinAnswers) {
+        // Завдання дня закриває лише ідеальний рівень ПОТРІБНОГО режиму
+        if (state.mode === dailyTaskMode()) {
             completeDailyTask();
+        } else if (state.mode !== 'exam' && state.mode !== 'blitz') {
+            // Ідеально, але не той режим — підкажемо, де чекає медаль
+            const meta = MODE_META[dailyTaskMode()] || {};
+            setTimeout(() => showNotification('Ідеально! 🌟',
+                `А завдання дня — ${meta.icon || ''} ${meta.label || ''}. Пройди його без помилок і отримай медаль 🏅`,
+                '🎯'), 800);
         }
-        // Великий салют на весь екран + конфеті
+        // Великий салют на весь екран + конфеті — за будь-який ідеальний рівень
         setTimeout(launchConfetti, 300);
         setTimeout(launchFireworks, 400);
         setTimeout(launchConfetti, 1300);
