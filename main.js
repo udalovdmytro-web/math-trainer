@@ -54,6 +54,8 @@ const CONFIG = {
     easyMultDailyLimit: 1,   // ×2 / ×5 dedicated drills award coins only this many times per day (too easy to farm)
     examMaxErrors: 2,        // exam is passed with fewer than 3 mistakes (i.e. ≤ this many)
     examPassBonus: 50,       // coins for passing the exam
+    goatExamMax: 30,         // goat exam: +/− within this bound (crossing-ten only)
+    goatExamPassBonus: 100,  // coins for passing the goat exam (the real prize is the Goat Simulator DLC)
     robuxRate: 10,           // coins per 1 Robux
     robuxDailyLimit: 30,     // max Robux the child can exchange per day (budget guard)
     saveDebounceMs: 2000,    // coalesce Firebase writes within this window
@@ -79,8 +81,12 @@ const MODE_META = {
     plusminus:      { icon: '➕➖', label: 'Плюс-мінус',  color: 'var(--peach)',      reward: 2 },
     logic:          { icon: '🧩', label: 'Логіка',      color: 'var(--peach)',      reward: 3 },
     blitz:          { icon: '⏱️', label: 'Бліц-Турнір', color: 'var(--yellow)',     reward: 1 },
-    exam:           { icon: '📝', label: 'Екзамен',     color: 'var(--gold)' } // reward handled at completion
+    exam:           { icon: '📝', label: 'Екзамен',     color: 'var(--gold)' }, // reward handled at completion
+    goatexam:       { icon: '🐐', label: 'Екзамен козла', color: '#CBE8A8' }    // pass bonus at completion, like the exam
 };
+
+// Both exams share the same silent-run pipeline (no per-answer feedback/coins)
+function isExamMode(mode) { return mode === 'exam' || mode === 'goatexam'; }
 
 function modeLabel(mode) { return (MODE_META[mode] && MODE_META[mode].label) || mode; }
 
@@ -402,7 +408,7 @@ function goToMenu() {
 // A started 20-question game or exam is saved after every question and must be
 // finished — pressing "back" no longer restarts it; the child resumes where they left off.
 function isResumableMode() {
-    return ['addition', 'subtraction', 'multiplication', 'division', 'logic', 'exam', 'plusminus'].includes(state.mode);
+    return ['addition', 'subtraction', 'multiplication', 'division', 'logic', 'exam', 'goatexam', 'plusminus'].includes(state.mode);
 }
 
 // Modes that get a per-question results table at the end (example / right-wrong / seconds)
@@ -427,8 +433,8 @@ function persistSession() {
         maxNum: state.maxNum != null ? state.maxNum : null,
         crossingTens: !!state.crossingTens,
         logicMode: state.logicMode || null,
-        examQueue: state.mode === 'exam' ? state.examQueue : null,
-        examResults: state.mode === 'exam' ? state.examResults : null,
+        examQueue: isExamMode(state.mode) ? state.examQueue : null,
+        examResults: isExamMode(state.mode) ? state.examResults : null,
         sessionLog: state.sessionLog || []
     };
     saveGame();
@@ -448,7 +454,7 @@ function updateResumeBanner() {
 }
 
 function isResumableModeName(mode) {
-    return ['addition', 'subtraction', 'multiplication', 'division', 'logic', 'exam', 'plusminus'].includes(mode);
+    return ['addition', 'subtraction', 'multiplication', 'division', 'logic', 'exam', 'goatexam', 'plusminus'].includes(mode);
 }
 
 // Returns true and resumes if there's an unfinished session (used to block starting a new game)
@@ -472,7 +478,7 @@ function resumeSession() {
     state.score = s.score;
     state.sessionCorrect = s.sessionCorrect;
     state.sessionLog = s.sessionLog || [];
-    if (s.mode === 'exam') {
+    if (isExamMode(s.mode)) {
         state.examQueue = s.examQueue || [];
         state.examResults = s.examResults || [];
     }
@@ -487,7 +493,7 @@ function resumeSession() {
     if (btd) btd.style.display = 'none';
     document.getElementById('progress-display').style.display = 'block';
     document.getElementById('score-value').textContent = state.score;
-    document.getElementById('score-display').style.display = (s.mode === 'exam') ? 'none' : '';
+    document.getElementById('score-display').style.display = isExamMode(s.mode) ? 'none' : '';
     document.getElementById('progress-total').textContent = state.totalRounds;
 
     showScreen('screen-game');
@@ -824,11 +830,12 @@ function generateProblem() {
     }
 
     switch (state.mode) {
-        case 'exam': {
+        case 'exam':
+        case 'goatexam': {
             // Pull the pre-built fact for this question number
             const item = state.examQueue[state.round - 1] || state.examQueue[0];
             a = item.a; b = item.b; answer = item.answer;
-            opSymbol = '×';
+            opSymbol = item.opSymbol || '×';
             break;
         }
 
@@ -1042,6 +1049,82 @@ function startExam() {
     if (btd) btd.style.display = 'none';
     document.getElementById('progress-display').style.display = 'block';
     // Hide the score counter during the exam — no right/wrong hints until the end
+    document.getElementById('score-display').style.display = 'none';
+    document.getElementById('score-value').textContent = '0';
+    document.getElementById('progress-total').textContent = state.totalRounds;
+
+    showScreen('screen-game');
+    nextProblem();
+}
+
+// ===== GOAT EXAM (🐐 Симулятор екзамену козла) =====
+// 100 прикладів на + і − в межах goatExamMax (30), УСІ з переходом через десяток:
+// додавання — одиниці a + одиниці b > 10 (тож 2+3 чи 15+1 не трапляються);
+// віднімання — з позикою з десятка (одиниці a < одиниці b).
+function buildGoatCrossingPools() {
+    const max = CONFIG.goatExamMax;
+    const addPool = [], subPool = [];
+    for (let a = 2; a <= max - 2; a++) {
+        for (let b = 2; b <= max - 2; b++) {
+            if (a + b <= max && (a % 10) + (b % 10) > 10) {
+                addPool.push({ a, b, answer: a + b, opSymbol: '+', factKey: `a:${a}+${b}` });
+            }
+        }
+    }
+    for (let a = 11; a <= max; a++) {
+        for (let b = 2; b < a; b++) {
+            if ((a % 10) < (b % 10)) {
+                subPool.push({ a, b, answer: a - b, opSymbol: '−', factKey: `s:${a}-${b}` });
+            }
+        }
+    }
+    return { addPool, subPool };
+}
+
+// Зважений відбір без повторів: слабкі/повільні факти мають більший шанс потрапити
+function pickGoatHalf(pool, count) {
+    const scored = pool.map(f => ({ f, s: factWeight(f.factKey) * (0.5 + Math.random()) }));
+    scored.sort((x, y) => y.s - x.s);
+    return scored.slice(0, count).map(e => ({ ...e.f }));
+}
+
+function buildGoatExamQueue() {
+    const { addPool, subPool } = buildGoatCrossingPools();
+    const queue = shuffleArray(pickGoatHalf(addPool, 50).concat(pickGoatHalf(subPool, 50)));
+    // Avoid the same fact appearing twice in a row
+    for (let i = 1; i < queue.length; i++) {
+        if (queue[i].factKey === queue[i - 1].factKey) {
+            for (let j = i + 1; j < queue.length; j++) {
+                if (queue[j].factKey !== queue[i - 1].factKey) {
+                    [queue[i], queue[j]] = [queue[j], queue[i]];
+                    break;
+                }
+            }
+        }
+    }
+    return queue;
+}
+
+function startGoatExam() {
+    if (blockedBySession()) return; // resume the unfinished session instead of restarting
+    state.mode = 'goatexam';
+    state.inputMode = 'numpad';
+    state.difficultyLabel = 'Екзамен козла 🐐';
+    state.crossingTens = false;
+    state.factors = null;
+    state.examQueue = buildGoatExamQueue();
+    state.examResults = [];
+    state.totalRounds = state.examQueue.length; // 100
+    state.score = 0;
+    state.round = 0;
+    state.sessionCorrect = 0;
+    state.numpadValue = '';
+
+    if (blitzTimer) clearInterval(blitzTimer);
+    const btd = document.getElementById('blitz-timer-display');
+    if (btd) btd.style.display = 'none';
+    document.getElementById('progress-display').style.display = 'block';
+    // No right/wrong hints until the end — same silent run as the multiplication exam
     document.getElementById('score-display').style.display = 'none';
     document.getElementById('score-value').textContent = '0';
     document.getElementById('progress-total').textContent = state.totalRounds;
@@ -1468,10 +1551,10 @@ function makeTenHint(a, b, op, answer) {
 }
 
 // Exam answer: record the outcome silently and advance (no colour/emoji/reveal)
-function handleExamResult(correct, userAnswer) {
+function handleExamResult(correct, userAnswer, timeMs) {
     if (correct) { state.score++; state.sessionCorrect++; }
     const p = state.currentProblem;
-    state.examResults.push({ a: p.a, b: p.b, answer: p.answer, user: userAnswer, correct });
+    state.examResults.push({ a: p.a, b: p.b, op: p.opSymbol || '×', answer: p.answer, user: userAnswer, correct, timeMs: timeMs || 0 });
 
     // brief neutral acknowledgement, then next question
     const numpadDisplay = document.getElementById('numpad-display');
@@ -1489,9 +1572,9 @@ function handleResult(correct, userAnswer, btnElement) {
     const timeTaken = Date.now() - state.problemStartTime;
     recordStat(state.currentProblem && state.currentProblem.factKey, correct, timeTaken);
 
-    // Exam: no right/wrong feedback during the run — just record and move on
-    if (state.mode === 'exam') {
-        handleExamResult(correct, userAnswer);
+    // Exams: no right/wrong feedback during the run — just record and move on
+    if (isExamMode(state.mode)) {
+        handleExamResult(correct, userAnswer, timeTaken);
         return;
     }
 
@@ -1602,15 +1685,19 @@ function showCompletion() {
     const total = state.mode === 'blitz' ? state.round - 1 : state.totalRounds;
     let percent = total > 0 ? Math.round((correct / total) * 100) : 0;
 
-    const isExam = state.mode === 'exam';
+    const isExam = isExamMode(state.mode);
+    const isGoat = state.mode === 'goatexam';
     const examErrors = total - correct;
     const examPassed = examErrors <= CONFIG.examMaxErrors;
     const examMistakes = isExam ? state.examResults.filter(r => !r.correct)
-        .map(r => ({ a: r.a, b: r.b, answer: r.answer, user: r.user })) : null;
+        .map(r => ({ a: r.a, b: r.b, op: r.op || '×', answer: r.answer, user: r.user, timeMs: r.timeMs || 0 })) : null;
+    // Aggregate timing for later analysis (avg + slowest answers)
+    const examAvgMs = isExam && state.examResults.length
+        ? Math.round(state.examResults.reduce((s, r) => s + (r.timeMs || 0), 0) / state.examResults.length) : 0;
 
-    // Save to history (exam also stores its mistakes + pass flag for later analysis)
+    // Save to history (exams also store mistakes + pass flag + avg time for later analysis)
     saveSession(state.mode, state.difficultyLabel || modeLabel(state.mode), correct, total,
-        isExam ? { mistakes: examMistakes, passed: examPassed } : undefined);
+        isExam ? { mistakes: examMistakes, passed: examPassed, avgMs: examAvgMs } : undefined);
 
     document.getElementById('stat-correct').textContent = correct;
     document.getElementById('stat-total').textContent = total;
@@ -1630,17 +1717,27 @@ function showCompletion() {
             subtitle.textContent = `Час вийшов! Твій рекорд: ${state.blitzRecord}`;
         }
     } else if (isExam) {
+        const passBonus = isGoat ? CONFIG.goatExamPassBonus : CONFIG.examPassBonus;
         if (examPassed) {
-            completeEmoji.textContent = '🏆';
-            subtitle.textContent = (examErrors === 0
-                ? 'Екзамен складено без помилок!'
-                : `Екзамен складено! Помилок: ${examErrors}.`) + ` +${CONFIG.examPassBonus} 💰`;
-            state.coins += CONFIG.examPassBonus;
+            completeEmoji.textContent = isGoat ? '🐐' : '🏆';
+            if (isGoat) {
+                subtitle.textContent = (examErrors === 0
+                    ? 'Екзамен козла складено без помилок! 🐐'
+                    : `Екзамен козла складено! Помилок: ${examErrors}. 🐐`)
+                    + ` +${passBonus} 💰 Кажи татові — він обіцяв доповнення! 🎮`;
+            } else {
+                subtitle.textContent = (examErrors === 0
+                    ? 'Екзамен складено без помилок!'
+                    : `Екзамен складено! Помилок: ${examErrors}.`) + ` +${passBonus} 💰`;
+            }
+            state.coins += passBonus;
             updateEconomyUI();
             saveGame(true);
         } else {
-            completeEmoji.textContent = '💪';
-            subtitle.textContent = `Не склав: ${examErrors} помилок (треба менше 3). Подивись, де саме, і спробуй ще!`;
+            completeEmoji.textContent = isGoat ? '🐐' : '💪';
+            subtitle.textContent = isGoat
+                ? `Не склав: ${examErrors} помилок (можна щонайбільше 2). Козел вірить у тебе — глянь на помилки і спробуй ще! 💪`
+                : `Не склав: ${examErrors} помилок (треба менше 3). Подивись, де саме, і спробуй ще!`;
         }
     } else {
         if (percent === 100) {
@@ -1684,7 +1781,7 @@ function showCompletion() {
                 examMistakes.forEach(m => {
                     const chip = document.createElement('div');
                     chip.className = 'mistake-chip';
-                    chip.innerHTML = `<b>${m.a}×${m.b}=${m.answer}</b><span>ти: ${m.user}</span>`;
+                    chip.innerHTML = `<b>${m.a} ${m.op || '×'} ${m.b} = ${m.answer}</b><span>ти: ${m.user}</span>`;
                     list.appendChild(chip);
                 });
                 mistakesEl.appendChild(list);
@@ -1692,13 +1789,17 @@ function showCompletion() {
         }
     }
 
-    // +/- family: per-question results table (example / right-wrong / seconds)
+    // +/- family: per-question results table (example / right-wrong / seconds).
+    // The goat exam gets the same full table built from its exam log — повна статистика.
     const resultsEl = document.getElementById('complete-results');
     if (resultsEl) {
         resultsEl.innerHTML = '';
-        if (hasResultsTable(state.mode) && state.sessionLog && state.sessionLog.length) {
+        const tableLog = isGoat
+            ? state.examResults.map(r => ({ label: `${r.a} ${r.op} ${r.b} = ${r.answer}`, user: r.user, correct: r.correct, timeMs: r.timeMs || 0 }))
+            : (hasResultsTable(state.mode) ? (state.sessionLog || []) : []);
+        if (tableLog.length) {
             let rows = '';
-            state.sessionLog.forEach(r => {
+            tableLog.forEach(r => {
                 const sec = (r.timeMs / 1000).toFixed(1);
                 const you = r.correct ? '' : ` <span class="rt-you">ти: ${r.user}</span>`;
                 rows += `<tr class="${r.correct ? 'rt-ok' : 'rt-bad'}">
@@ -1721,7 +1822,7 @@ function showCompletion() {
         // Завдання дня закриває лише ідеальний рівень ПОТРІБНОГО режиму
         if (state.mode === dailyTaskMode()) {
             completeDailyTask();
-        } else if (state.mode !== 'exam' && state.mode !== 'blitz') {
+        } else if (!isExam && state.mode !== 'blitz') {
             // Ідеально, але не той режим — підкажемо, де чекає медаль
             const meta = MODE_META[dailyTaskMode()] || {};
             setTimeout(() => showNotification('Ідеально! 🌟',
@@ -1741,6 +1842,7 @@ function showCompletion() {
 
 function playAgain() {
     if (state.mode === 'exam') startExam();
+    else if (state.mode === 'goatexam') startGoatExam();
     else startGame();
 }
 

@@ -66,6 +66,7 @@ All modes share the same game screen and `nextProblem()` → answer → `handleR
 - **logic** — equations with an unknown, or number sequences.
 - **blitz** — 60-second timer, mixed add/sub, no round limit.
 - **exam** — 100 multiplication questions built by `buildExamQueue()`: all 64 facts (2–9 × 2–9) once plus 36 repeats of the statistically weakest. **No right/wrong feedback during the run** (`handleExamResult` bypasses the normal feedback path), pass = at most `CONFIG.examMaxErrors` (2) mistakes, mistakes are listed on the completion screen and stored in history.
+- **goatexam** ("Симулятор екзамену козла" 🐐, a family joke — the prize is a Goat Simulator DLC) — same silent exam pipeline (`isExamMode()` gates it alongside `exam`): 100 add/sub questions within `goatExamMax` (30), 50/50 ±, **all crossing the ten** (`buildGoatExamQueue()`; addition units sum > 10, subtraction requires a borrow — no trivial 2+3/15+1), weighted toward statistically weak facts. Pass ≤ `examMaxErrors`, bonus `goatExamPassBonus` (100). Completion shows the full 100-row results table (with per-question time) plus mistake chips; the history record stores `mistakes` (with op/user/timeMs), `passed`, and `avgMs` for later analysis.
 
 ### Adaptivity stats
 

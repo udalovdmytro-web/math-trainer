@@ -247,6 +247,12 @@ body {
     box-shadow: 0 4px 12px rgba(255, 184, 122, 0.4);
 }
 
+.mode-goatexam {
+    background: linear-gradient(135deg, #EFF8E2, #CBE8A8);
+    border-color: #A8D878;
+    box-shadow: 0 4px 12px rgba(168, 216, 120, 0.45);
+}
+
 /* ===== ЧЕРЕЗ ДЕСЯТОК — make-ten picture ===== */
 .crossing-visual {
     display: flex;
