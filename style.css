@@ -2076,6 +2076,29 @@ body[data-screen="screen-game"] .global-stats-header {
     font-size: 1.8rem;
 }
 
+/* ✖ reset on the resume banner — small, pushed to the right, doesn't trigger resume */
+.resume-reset-btn {
+    margin-left: auto;
+    flex-shrink: 0;
+    width: 38px;
+    height: 38px;
+    border: none;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.65);
+    color: var(--text);
+    font-size: 1rem;
+    font-weight: 900;
+    font-family: inherit;
+    cursor: pointer;
+    box-shadow: var(--shadow-sm);
+}
+
+.resume-reset-btn:active {
+    transform: scale(0.9);
+    background: var(--wrong-bg);
+    color: var(--wrong);
+}
+
 .resume-title {
     font-size: 1.2rem;
     font-weight: 900;

@@ -457,6 +457,21 @@ function isResumableModeName(mode) {
     return ['addition', 'subtraction', 'multiplication', 'division', 'logic', 'exam', 'goatexam', 'plusminus'].includes(mode);
 }
 
+// Скидання незакінченої сесії — кнопка ✖ на банері «Продовжити» в меню.
+// Для батьків: прогрес сесії згорає без нарахувань, тому питаємо підтвердження.
+function resetActiveSession() {
+    if (!state.session) return;
+    const label = modeLabel(state.session.mode);
+    if (!confirm(`Скинути незакінчену гру «${label}»? Її прогрес згорить.`)) return;
+    state.session = null;
+    state.examQueue = [];
+    state.examResults = [];
+    state.sessionLog = [];
+    saveGame(true);
+    updateResumeBanner();
+    showNotification('Гру скинуто', 'Тепер можна почати будь-який режим 👍', '🗑️');
+}
+
 // Returns true and resumes if there's an unfinished session (used to block starting a new game)
 function blockedBySession() {
     if (state.session && isResumableModeName(state.session.mode)) {

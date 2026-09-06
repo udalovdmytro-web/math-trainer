@@ -12,7 +12,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="style.css?v=33">
+    <link rel="stylesheet" href="style.css?v=34">
     
     <!-- Firebase App (core) -->
     <script src="https://www.gstatic.com/firebasejs/10.9.0/firebase-app-compat.js"></script>
@@ -78,13 +78,14 @@
             </div>
         </div>
 
-        <!-- Resume unfinished session -->
+        <!-- Resume unfinished session (✖ = reset it after a confirm, for the parent) -->
         <div class="resume-banner" id="resume-banner" onclick="resumeSession()" style="display:none;">
             <span class="resume-icon">▶️</span>
             <div class="resume-text">
                 <div class="resume-title">Продовжити</div>
                 <div class="resume-sub" id="resume-sub"></div>
             </div>
+            <button class="resume-reset-btn" id="btn-reset-session" onclick="event.stopPropagation(); resetActiveSession()" title="Скинути незакінчену гру">✖</button>
         </div>
 
         <!-- Daily Task (endless chain: a zero-mistake level completes one, the next appears) -->
@@ -496,7 +497,7 @@
         </div>
     </div>
 
-    <script src="firebase-config.js?v=33"></script>
-    <script src="main.js?v=33"></script>
+    <script src="firebase-config.js?v=34"></script>
+    <script src="main.js?v=34"></script>
 </body>
 </html>
