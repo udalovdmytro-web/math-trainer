@@ -55,6 +55,8 @@ const CONFIG = {
     examMaxErrors: 2,        // exam is passed with fewer than 3 mistakes (i.e. ≤ this many)
     examPassBonus: 50,       // coins for passing the exam
     goatExamMax: 30,         // goat exam: +/− within this bound (crossing-ten only)
+    goatOpMin: 3,            // goat exam: the added/subtracted operand is a single digit in this range
+    goatOpMax: 9,            //   (e.g. 25−8, 17+4 — never 23−15)
     goatExamPassBonus: 100,  // coins for passing the goat exam (the real prize is the Goat Simulator DLC)
     robuxRate: 10,           // coins per 1 Robux
     robuxDailyLimit: 30,     // max Robux the child can exchange per day (budget guard)
@@ -1073,22 +1075,21 @@ function startExam() {
 }
 
 // ===== GOAT EXAM (🐐 Симулятор екзамену козла) =====
-// 100 прикладів на + і − в межах goatExamMax (30), УСІ з переходом через десяток:
-// додавання — одиниці a + одиниці b > 10 (тож 2+3 чи 15+1 не трапляються);
-// віднімання — з позикою з десятка (одиниці a < одиниці b).
+// 100 прикладів на + і − в межах goatExamMax (30): перше число будь-яке,
+// а додаємо/віднімаємо лише однозначне goatOpMin..goatOpMax (3–9), як-от 25−8 чи 17+4.
+// УСІ приклади з переходом через десяток: додавання — одиниці a + b > 10,
+// віднімання — з позикою з десятка (одиниці a < b). Тож 2+3, 15+1 чи 26−4 не трапляються.
 function buildGoatCrossingPools() {
     const max = CONFIG.goatExamMax;
     const addPool = [], subPool = [];
-    for (let a = 2; a <= max - 2; a++) {
-        for (let b = 2; b <= max - 2; b++) {
-            if (a + b <= max && (a % 10) + (b % 10) > 10) {
+    for (let b = CONFIG.goatOpMin; b <= CONFIG.goatOpMax; b++) {
+        for (let a = 2; a + b <= max; a++) {
+            if ((a % 10) + b > 10) {
                 addPool.push({ a, b, answer: a + b, opSymbol: '+', factKey: `a:${a}+${b}` });
             }
         }
-    }
-    for (let a = 11; a <= max; a++) {
-        for (let b = 2; b < a; b++) {
-            if ((a % 10) < (b % 10)) {
+        for (let a = 11; a <= max; a++) {
+            if ((a % 10) < b) {
                 subPool.push({ a, b, answer: a - b, opSymbol: '−', factKey: `s:${a}-${b}` });
             }
         }
