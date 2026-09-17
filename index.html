@@ -12,7 +12,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="style.css?v=35">
+    <link rel="stylesheet" href="style.css?v=36">
     
     <!-- Firebase App (core) -->
     <script src="https://www.gstatic.com/firebasejs/10.9.0/firebase-app-compat.js"></script>
@@ -155,6 +155,9 @@
             </button>
             <button class="history-btn achievements-btn" onclick="showAchievements()" id="btn-achievements" style="width: 100%; margin-top: 10px; background: var(--lavender);">
                 🏆 Досягнення
+            </button>
+            <button class="history-btn" onclick="showParentReport()" id="btn-parent-report" style="width: 100%; margin-top: 10px; background: var(--sky);">
+                📊 Звіт для батьків
             </button>
         </div>
 
@@ -484,6 +487,19 @@
         </div>
     </div>
 
+    <!-- ===== PARENT REPORT SCREEN (звідки взялися монети) ===== -->
+    <div id="screen-parent-report" class="screen">
+        <button class="back-btn" onclick="goToMenu()" id="btn-back-parent-report">
+            ← Назад
+        </button>
+        <div class="shop-header">
+            <h2 class="shop-title">📊 Звіт для батьків</h2>
+        </div>
+        <div class="parent-report-container" id="parent-report-body">
+            <!-- Dynamically populated -->
+        </div>
+    </div>
+
     <!-- ===== CUSTOM MIX MODAL ===== -->
     <div id="mix-modal" class="mix-modal" style="display:none;">
         <div class="mix-modal-content">
@@ -497,7 +513,7 @@
         </div>
     </div>
 
-    <script src="firebase-config.js?v=35"></script>
-    <script src="main.js?v=35"></script>
+    <script src="firebase-config.js?v=36"></script>
+    <script src="main.js?v=36"></script>
 </body>
 </html>

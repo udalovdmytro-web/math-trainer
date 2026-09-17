@@ -2293,3 +2293,42 @@ body[data-screen="screen-game"] .global-stats-header {
     opacity: 0.45;
     cursor: not-allowed;
 }
+/* ===== PARENT REPORT ===== */
+.parent-report-container {
+    width: 100%;
+    max-width: 440px;
+    margin: 0 auto;
+}
+
+.rp-share {
+    font-size: 0.75rem;
+    color: var(--text-light);
+    font-weight: 700;
+}
+
+.rp-totals {
+    background: var(--white);
+    border-radius: var(--radius);
+    border: 3px solid var(--sky);
+    padding: 14px 16px;
+    margin-top: 16px;
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: var(--text);
+    line-height: 1.7;
+}
+
+.rp-note {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--text-light);
+    margin-top: 6px;
+}
+
+.rp-subtitle {
+    font-size: 1.1rem;
+    font-weight: 900;
+    color: var(--text);
+    margin: 20px 0 10px;
+    text-align: center;
+}

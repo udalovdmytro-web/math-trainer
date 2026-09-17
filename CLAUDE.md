@@ -81,6 +81,10 @@ Every answer is recorded per fact key (`m:3x7`, `a:5+8`, …) in `state.stats` v
 - The exam awards nothing per answer — only a pass bonus at completion.
 - The shop trades coins for Robux (`buyRobux`: `robuxRate` coins per 1, capped at `robuxDailyLimit` per day; `robuxOwed` tracks what the parent still owes and delivers manually) and for Roblox minutes (`buyRobloxTime` — the real-world reward the child is playing for).
 
+### Parent report (audit trail)
+
+`saveSession()` records now carry `coins` — the coins actually awarded in that session (`state.sessionCoins`, accumulated in `awardCorrect()`, plus an exam pass bonus). `showParentReport()` (menu → 📊 Звіт для батьків) breaks today's coins down by mode + difficulty with percentage shares, flags farmable rows (`isFarmRow()` — single-digit ×2/×5 custom mixes), and compares the reconstructed total against `daily.count` and the balance, so a suspicious jump can be traced. Records saved before this feature have no `coins` field and are reconstructed from current `MODE_META` rates by `sessionCoinsOf()` — the report labels those as approximate.
+
 ## Conventions
 
 - **All user-facing text is Ukrainian.** Code comments are a mix of Ukrainian/Russian/English; write new UI strings in Ukrainian.

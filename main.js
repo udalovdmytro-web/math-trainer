@@ -20,6 +20,7 @@ const state = {
     examQueue: [],     // pre-built list of 100 facts for the exam mode
     examResults: [],   // per-question outcomes for end-of-exam analysis {a,b,answer,user,correct}
     session: null,     // active unfinished session snapshot (resumed on return; blocks restart)
+    sessionCoins: 0,   // монети, нараховані в поточній сесії (для звіту батькам)
     sessionLog: [],    // per-question log for the +/- results table {label, answer, user, correct, timeMs}
     // Crossing tens mode
     crossingTens: false,
@@ -437,6 +438,7 @@ function persistSession() {
         logicMode: state.logicMode || null,
         examQueue: isExamMode(state.mode) ? state.examQueue : null,
         examResults: isExamMode(state.mode) ? state.examResults : null,
+        sessionCoins: state.sessionCoins || 0,
         sessionLog: state.sessionLog || []
     };
     saveGame();
@@ -495,6 +497,7 @@ function resumeSession() {
     state.score = s.score;
     state.sessionCorrect = s.sessionCorrect;
     state.sessionLog = s.sessionLog || [];
+    state.sessionCoins = s.sessionCoins || 0;
     if (isExamMode(s.mode)) {
         state.examQueue = s.examQueue || [];
         state.examResults = s.examResults || [];
@@ -685,6 +688,7 @@ let blitzTimer = null;
 let blitzSeconds = 60;
 
 function startBlitzMode() {
+    state.sessionCoins = 0;
     if (blockedBySession()) return; // finish the active session first
     state.mode = 'blitz';
     state.score = 0;
@@ -986,6 +990,7 @@ function shuffleArray(arr) {
 
 // ===== GAME FLOW =====
 function startGame() {
+    state.sessionCoins = 0;
     state.totalRounds = CONFIG.totalRounds; // reset (exam may have set it to 100)
     state.score = 0;
     state.round = 0;
@@ -1047,6 +1052,7 @@ function buildExamQueue() {
 }
 
 function startExam() {
+    state.sessionCoins = 0;
     if (blockedBySession()) return; // resume the unfinished session instead of restarting
     state.mode = 'exam';
     state.inputMode = 'numpad';        // exam = type the answer, no options
@@ -1122,6 +1128,7 @@ function buildGoatExamQueue() {
 }
 
 function startGoatExam() {
+    state.sessionCoins = 0;
     if (blockedBySession()) return; // resume the unfinished session instead of restarting
     state.mode = 'goatexam';
     state.inputMode = 'numpad';
@@ -1540,6 +1547,7 @@ function awardCorrect(timeTaken) {
     }
 
     state.coins += earned;
+    state.sessionCoins = (state.sessionCoins || 0) + earned;
 
     // Лічильник правильних за день (сама нагорода за «завдання дня» — в completeDailyTask,
     // яке закривається лише рівнем без жодної помилки)
@@ -1712,8 +1720,12 @@ function showCompletion() {
         ? Math.round(state.examResults.reduce((s, r) => s + (r.timeMs || 0), 0) / state.examResults.length) : 0;
 
     // Save to history (exams also store mistakes + pass flag + avg time for later analysis)
+    // Фактично нараховані монети за сесію (+ бонус за складений екзамен) — для звіту батькам
+    const earnedCoins = (state.sessionCoins || 0) +
+        (isExam && examPassed ? (isGoat ? CONFIG.goatExamPassBonus : CONFIG.examPassBonus) : 0);
     saveSession(state.mode, state.difficultyLabel || modeLabel(state.mode), correct, total,
-        isExam ? { mistakes: examMistakes, passed: examPassed, avgMs: examAvgMs } : undefined);
+        isExam ? { mistakes: examMistakes, passed: examPassed, avgMs: examAvgMs, coins: earnedCoins }
+               : { coins: earnedCoins });
 
     document.getElementById('stat-correct').textContent = correct;
     document.getElementById('stat-total').textContent = total;
@@ -2018,6 +2030,101 @@ function showDayDetails(dateStr, dayNum) {
 
     document.getElementById('day-details').style.display = 'block';
     document.getElementById('day-details').scrollIntoView({ behavior: 'smooth' });
+}
+
+// ===== ЗВІТ ДЛЯ БАТЬКІВ (звідки взялися монети) =====
+// Нові сесії зберігають фактично нараховані монети в history[].coins.
+// Для старих записів рахуємо приблизно за поточними ставками MODE_META.
+function sessionCoinsOf(h) {
+    if (typeof h.coins === 'number') return { coins: h.coins, exact: true };
+    const d = h.difficulty || '';
+    const meta = MODE_META[h.mode] || {};
+    let per = isExamMode(h.mode) ? (h.mode === 'goatexam' ? 1 : 0)
+                                 : (d === 'Через десяток' ? (meta.crossingReward || 2) : (meta.reward || 1));
+    if (h.mode === 'multiplication' && /^На [25]$/.test(d)) per = 0; // денний ліміт
+    let c = (h.correct || 0) * per;
+    if (h.mode === 'exam' && h.passed) c += CONFIG.examPassBonus;
+    if (h.mode === 'goatexam' && h.passed) c += CONFIG.goatExamPassBonus;
+    return { coins: c, exact: false };
+}
+
+// Режими, де дитина може «фармити» найлегший контент — підсвічуємо в звіті
+function isFarmRow(mode, difficulty) {
+    return (mode === 'multiplication' || mode === 'division') && /^Мікс [25]$/.test(difficulty || '');
+}
+
+function showParentReport() {
+    const today = new Date().toLocaleDateString('en-CA');
+    const hist = getHistory();
+    const sess = hist.filter(h => h.date === today);
+
+    const rows = {};
+    let total = 0, answers = 0, approx = false;
+    sess.forEach(h => {
+        const r = sessionCoinsOf(h);
+        if (!r.exact) approx = true;
+        const label = (MODE_META[h.mode] ? MODE_META[h.mode].label : h.mode);
+        const diff = (h.difficulty || '').trim();
+        // не дублюємо назву режиму в підписі («Бліц-Турнір · Бліц»)
+        const showDiff = diff && !label.startsWith(diff) && !diff.startsWith(label);
+        const key = label + (showDiff ? ' · ' + diff : '');
+        if (!rows[key]) rows[key] = { coins: 0, sessions: 0, correct: 0, farm: isFarmRow(h.mode, h.difficulty) };
+        rows[key].coins += r.coins;
+        rows[key].sessions++;
+        rows[key].correct += (h.correct || 0);
+        total += r.coins;
+        answers += (h.correct || 0);
+    });
+
+    const tasks = (state.daily && state.daily.tasksDone) || 0;
+    const taskCoins = tasks ? CONFIG.dailyBonus + (tasks - 1) * CONFIG.dailyRepeatBonus : 0;
+
+    let html = '';
+    const sorted = Object.entries(rows).sort((a, b) => b[1].coins - a[1].coins);
+    if (!sorted.length) {
+        html += '<div class="mistakes-none">Сьогодні ще не грали 🙂</div>';
+    } else {
+        html += '<table class="results-table"><thead><tr><th>Режим</th><th>Монет</th><th>Сес.</th><th>Прав.</th></tr></thead><tbody>';
+        sorted.forEach(([k, v]) => {
+            const share = total ? Math.round(v.coins / total * 100) : 0;
+            html += `<tr class="${v.farm ? 'rt-bad' : 'rt-ok'}">
+                <td class="rt-ex">${v.farm ? '⚠️ ' : ''}${k}</td>
+                <td class="rt-sec"><b>${v.coins}</b> <span class="rp-share">${share}%</span></td>
+                <td class="rt-sec">${v.sessions}</td>
+                <td class="rt-mark">${v.correct}</td>
+            </tr>`;
+        });
+        html += '</tbody></table>';
+    }
+
+    html += `<div class="rp-totals">
+        <div>Сесій сьогодні: <b>${sess.length}</b>, правильних відповідей: <b>${answers}</b></div>
+        <div>Монет за відповіді: <b>${total}</b> + завдання дня (${tasks}): <b>${taskCoins}</b> → <b>${total + taskCoins}</b></div>
+        <div>Лічильник у грі (daily.count): <b>${(state.daily && state.daily.count) || 0}</b></div>
+        <div>Баланс зараз: <b>${state.coins} 💰</b>, Robux до видачі: <b>${state.robuxOwed || 0}</b></div>
+        ${approx ? '<div class="rp-note">Частина сесій — до введення обліку монет, для них сума приблизна.</div>' : ''}
+    </div>`;
+
+    // Останні 7 днів
+    const byDay = {};
+    hist.forEach(h => {
+        if (!byDay[h.date]) byDay[h.date] = { coins: 0, sessions: 0, correct: 0 };
+        byDay[h.date].coins += sessionCoinsOf(h).coins;
+        byDay[h.date].sessions++;
+        byDay[h.date].correct += (h.correct || 0);
+    });
+    const days = Object.keys(byDay).sort().reverse().slice(0, 7);
+    if (days.length) {
+        html += '<h3 class="rp-subtitle">Останні дні</h3><table class="results-table"><thead><tr><th>Дата</th><th>Монет</th><th>Сес.</th><th>Прав.</th></tr></thead><tbody>';
+        days.forEach(d => {
+            const v = byDay[d];
+            html += `<tr class="${d === today ? 'rt-ok' : ''}"><td class="rt-ex">${d}</td><td class="rt-sec"><b>${v.coins}</b></td><td class="rt-sec">${v.sessions}</td><td class="rt-mark">${v.correct}</td></tr>`;
+        });
+        html += '</tbody></table>';
+    }
+
+    document.getElementById('parent-report-body').innerHTML = html;
+    showScreen('screen-parent-report');
 }
 
 // ===== VISUAL EFFECTS =====
