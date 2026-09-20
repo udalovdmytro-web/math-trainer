@@ -52,7 +52,7 @@ const CONFIG = {
     dailyGoal: 100,          // legacy (v1 goal of 100 answers); kept to migrate old saves' streaks
     dailyBonus: 50,          // coins for the FIRST completed daily task each day (also grows the streak)
     dailyRepeatBonus: 15,    // coins for every following completed daily task the same day
-    easyMultDailyLimit: 1,   // ×2 / ×5 dedicated drills award coins only this many times per day (too easy to farm)
+    easyDailyAnswers: 20,    // скільки відповідей на «легкому» контенті (2/5) оплачується за день ≈ одна сесія
     examMaxErrors: 2,        // exam is passed with fewer than 3 mistakes (i.e. ≤ this many)
     examPassBonus: 50,       // coins for passing the exam
     goatExamMax: 30,         // goat exam: +/− within this bound (crossing-ten only)
@@ -689,6 +689,7 @@ let blitzSeconds = 60;
 
 function startBlitzMode() {
     state.sessionCoins = 0;
+    state.maxNum = 20;   // пул прикладів для бліцу — в межах 20
     if (blockedBySession()) return; // finish the active session first
     state.mode = 'blitz';
     state.score = 0;
@@ -808,14 +809,26 @@ function buildAddSubPool(mode, crossingOnly) {
     return pool;
 }
 
+// Числа, на яких зараз тренуємось: явний мікс має пріоритет над діапазоном minA..maxA.
+function activeFactors() {
+    if (state.factors && state.factors.length) return state.factors.slice();
+    const out = [];
+    for (let x = state.minA; x <= state.maxA; x++) out.push(x);
+    return out;
+}
+
+// Тривіальний контент — тренування лише на 2 і/або 5 (вивчено напам'ять, легко фармити монети).
+// Працює і для «Свого міксу», бо дивиться на activeFactors(), а не на minA/maxA.
+function isTrivialDrill() {
+    if (state.mode !== 'multiplication' && state.mode !== 'division') return false;
+    const f = activeFactors();
+    return f.length > 0 && f.every(x => x === 2 || x === 5);
+}
+
 // Build the candidate pool for the current multiplication/division difficulty.
 function buildFactPool(mode) {
     const pool = [];
-    // Explicit factor set (e.g. mixed 4·6·7) takes priority over the minA..maxA range
-    let factors = (state.factors && state.factors.length) ? state.factors : [];
-    if (!factors.length) {
-        for (let x = state.minA; x <= state.maxA; x++) factors.push(x);
-    }
+    const factors = activeFactors(); // явний мікс має пріоритет над діапазоном minA..maxA
     for (const x of factors) {
         for (let q = 2; q <= 10; q++) {
             if (mode === 'multiplication') {
@@ -833,21 +846,13 @@ function generateProblem() {
     let a, b, answer, opSymbol;
 
     if (state.mode === 'blitz') {
-        const isAdd = randomInt(0, 1) === 1;
-        if (isAdd) {
-            answer = randomInt(6, 20);
-            a = randomInt(3, answer - 3);
-            b = answer - a;
-            opSymbol = '+';
-        } else {
-            a = randomInt(6, 20);
-            b = randomInt(3, a);
-            answer = a - b;
-            opSymbol = '−';
-        }
-        const blitzKey = factKeyFor('blitz', a, b, opSymbol);
-        state.lastFactKey = blitzKey;
-        return { a, b, answer, opSymbol, factKey: blitzKey };
+        // Тільки з переходом через десяток: інакше бліц — найшвидший спосіб фармити монети
+        const op = randomInt(0, 1) === 1 ? 'addition' : 'subtraction';
+        const pick = pickWeightedFact(buildAddSubPool(op, true));
+        a = pick.a; b = pick.b; answer = pick.answer;
+        opSymbol = op === 'addition' ? '+' : '−';
+        state.lastFactKey = pick.factKey;
+        return { a, b, answer, opSymbol, factKey: pick.factKey };
     }
 
     switch (state.mode) {
@@ -901,26 +906,38 @@ function generateProblem() {
         }
 
         case 'logic':
+            // Логіка платить найбільше за відповідь, тож і приклади мають бути непростими:
+            // рівняння з + і −, числа до 30; ряди з кроком 2..9, зростаючі та спадні.
             if (state.logicMode === 'equation') {
-                let c = randomInt(8, 20);
-                let unknownA = randomInt(1, c - 1);
-                let unknownB = c - unknownA;
-                if (randomInt(0, 1) === 1) {
-                    answer = unknownA;
-                    a = `? + ${unknownB} = ${c}`;
-                } else {
-                    answer = unknownB;
-                    a = `${unknownA} + ? = ${c}`;
+                const small = randomInt(3, 9);          // однозначний доданок / від'ємник
+                const res = randomInt(12, 30);
+                switch (randomInt(0, 3)) {
+                    case 0:                              // ? + small = res
+                        answer = res - small; a = `? + ${small} = ${res}`; break;
+                    case 1:                              // small + ? = res
+                        answer = res - small; a = `${small} + ? = ${res}`; break;
+                    case 2: {                            // ? − small = r  (шукаємо зменшуване)
+                        const r = randomInt(4, 21);
+                        answer = r + small; a = `? − ${small} = ${r}`; break;
+                    }
+                    default:                             // res − ? = small
+                        answer = res - small; a = `${res} − ? = ${small}`; break;
                 }
                 b = '';
                 opSymbol = '';
             } else {
-                let step = randomInt(2, 5);
-                let start = randomInt(1, 10);
-                a = `${start}, ${start + step}, ${start + 2*step},`;
+                const step = randomInt(2, 9);
+                if (randomInt(0, 1) === 1) {             // спадний ряд
+                    const start = randomInt(3 * step + 2, 40);
+                    a = `${start}, ${start - step}, ${start - 2 * step},`;
+                    answer = start - 3 * step;
+                } else {                                 // зростаючий ряд
+                    const start = randomInt(1, 12);
+                    a = `${start}, ${start + step}, ${start + 2 * step},`;
+                    answer = start + 3 * step;
+                }
                 b = '';
                 opSymbol = '';
-                answer = start + 3*step;
             }
             break;
     }
@@ -1528,21 +1545,21 @@ function awardCorrect(timeTaken) {
 
     const meta = MODE_META[state.mode] || {};
     let earned = state.crossingTens ? (meta.crossingReward || 2) : (meta.reward || 1);
-    if (state.mode === 'exam') earned = 0; // exam is graded with a bonus at the end, not per answer
+    if (isExamMode(state.mode)) earned = 0; // екзамени оплачуються бонусом у кінці, не за відповідь
 
-    // Anti-farming: the trivial ×2 and ×5 dedicated drills award coins only once per day
-    if (state.mode === 'multiplication' && state.minA === state.maxA && (state.minA === 2 || state.minA === 5)) {
+    // Anti-farming: тривіальний контент (лише 2 і/або 5) оплачується обмежено за день —
+    // і в окремих дриллах «На 2»/«На 5», і в «Своєму міксі», який раніше обходив ліміт.
+    if (isTrivialDrill()) {
         if (!state.daily.multLimits) state.daily.multLimits = {};
-        const key = 'm' + state.minA;
-        const used = state.daily.multLimits[key] || 0;
-        if (used >= CONFIG.easyMultDailyLimit) {
-            earned = 0; // already claimed today
-            if (used === CONFIG.easyMultDailyLimit) {
-                showNotification('Це надто легко 🙂', `За множення на ${state.minA} монети даємо лише раз на день. Обери складніше!`, '💡');
-                state.daily.multLimits[key] = used + 1; // bump so the message shows once
+        const used = state.daily.multLimits.easy || 0;
+        if (used >= CONFIG.easyDailyAnswers) {
+            earned = 0; // ліміт на сьогодні вичерпано
+            if (used === CONFIG.easyDailyAnswers) {
+                showNotification('Це вже зовсім легко 🙂', 'Монети за таблицю на 2 і 5 на сьогодні все. Обери складніше — там і платять більше!', '💡');
+                state.daily.multLimits.easy = used + 1; // щоб повідомлення показалось один раз
             }
         } else {
-            state.daily.multLimits[key] = used + 1;
+            state.daily.multLimits.easy = used + 1;
         }
     }
 
@@ -2433,7 +2450,7 @@ function showShop() {
     // Robux cards
     const robuxUsed = (state.daily && state.daily.robuxToday) || 0;
     const robuxLeft = Math.max(0, CONFIG.robuxDailyLimit - robuxUsed);
-    [[5, 50], [10, 100], [500, 5000], [1000, 9000]].forEach(([robux, cost]) => {
+    [[5, 50], [10, 100], [500, 8000], [1000, 14400]].forEach(([robux, cost]) => {
         const btn = document.getElementById(`btn-buy-robux-${robux}`);
         document.getElementById(`msg-robux-${robux}-success`).style.display = 'none';
         document.getElementById(`msg-robux-${robux}-error`).style.display = 'none';
