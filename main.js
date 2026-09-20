@@ -2450,7 +2450,7 @@ function showShop() {
     // Robux cards
     const robuxUsed = (state.daily && state.daily.robuxToday) || 0;
     const robuxLeft = Math.max(0, CONFIG.robuxDailyLimit - robuxUsed);
-    [[5, 50], [10, 100], [500, 8000], [1000, 14400]].forEach(([robux, cost]) => {
+    [[5, 50], [10, 100], [500, 8000], [1000, 15000]].forEach(([robux, cost]) => {
         const btn = document.getElementById(`btn-buy-robux-${robux}`);
         document.getElementById(`msg-robux-${robux}-success`).style.display = 'none';
         document.getElementById(`msg-robux-${robux}-error`).style.display = 'none';
