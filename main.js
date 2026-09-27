@@ -2335,7 +2335,7 @@ function drawFireworkParticles() {
 // --- Floating Decorations ---
 function createFloatingDecorations() {
     const container = document.getElementById('floating-decorations');
-    const items = ['🌸', '⭐', '🌈', '💖', '✨', '🦋', '🎀', '🌷', '🍀', '🎵'];
+    const items = ['🎃', '👻', '🦇', '🕷️', '🕸️', '🌙', '⭐', '💀', '🍬', '🦉'];
 
     for (let i = 0; i < 12; i++) {
         const item = document.createElement('div');

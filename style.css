@@ -2332,3 +2332,98 @@ body[data-screen="screen-game"] .global-stats-header {
     margin: 20px 0 10px;
     text-align: center;
 }
+
+/* =====================================================================
+   🎃 ТЕМА «ХЕЛОВІН» — нічне синє небо, місяць, кажани й гарбузи.
+   Уся тема зібрана тут: щоб повернути старий фон, досить прибрати цей блок
+   і повернути список прикрас у createFloatingDecorations().
+   ===================================================================== */
+:root {
+    --bg: #0E1A40;
+    --bg-gradient:
+        radial-gradient(circle at 86% 24%, #FFF6CF 0 22px, rgba(255, 238, 170, 0.22) 23px, rgba(255, 230, 150, 0.08) 60px, transparent 120px),
+        radial-gradient(ellipse at 50% 115%, rgba(255, 140, 50, 0.28) 0%, transparent 55%),
+        linear-gradient(170deg, #0A1433 0%, #13245A 45%, #1E1B4F 100%);
+    --text-on-bg: #EEF2FF;          /* текст прямо на нічному фоні */
+    --text-on-bg-light: #B7C4EC;    /* другорядний текст на фоні */
+    --halloween-orange: #FF9A3C;
+}
+
+body {
+    background: var(--bg-gradient);
+    background-color: var(--bg);
+    background-attachment: fixed;
+}
+
+/* Прикраси (кажани/гарбузи) на темному фоні помітніші, ніж пастельні */
+.floating-item {
+    opacity: 0.42;
+}
+
+/* Назва — гарбузово-фіолетова */
+.app-title {
+    background: linear-gradient(135deg, #FFC46B, #FF7A3D 45%, #C49BFF);
+    -webkit-background-clip: text;
+    background-clip: text;
+}
+
+/* Текст, що лежить прямо на фоні (знайдено скриптом по всіх екранах) */
+.app-subtitle,
+.submenu-title,
+.complete-subtitle,
+.calendar-title,
+.cal-month-label,
+.shop-title,
+.shop-section-title,
+.rp-subtitle,
+.calendar-empty,
+.day-details-title,
+.mistakes-title,
+.cross-cap,
+.star {
+    color: var(--text-on-bg);
+}
+
+.cal-day-header,
+.shop-note {
+    color: var(--text-on-bg-light);
+}
+
+.logout-btn {
+    color: #FFB3C1;
+}
+
+/* Логіка й Бліц раніше не мали фону карточки — на темному їх не було б видно */
+.mode-logic {
+    background: linear-gradient(135deg, #FFE7CC, var(--halloween-orange));
+    border-color: #FF8A1F;
+    box-shadow: 0 4px 14px rgba(255, 138, 31, 0.45);
+}
+
+.mode-blitz {
+    background: linear-gradient(135deg, #FFF7C2, var(--yellow-dark));
+    border-color: #F5C400;
+    box-shadow: 0 4px 14px rgba(245, 196, 0, 0.4);
+}
+
+/* 🌈 Радужні цифри в прикладах */
+.problem-num,
+.crossing-num {
+    background: linear-gradient(180deg, #FF4D6D 8%, #FF9F43 26%, #FFD43B 42%, #51CF66 58%, #339AF0 74%, #9775FA 92%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    color: transparent;
+    /* трохи тіні, щоб жовто-зелена частина не губилась на білій картці */
+    filter: drop-shadow(0 2px 0 rgba(74, 74, 106, 0.18));
+}
+
+/* На темному фоні напівпрозоре біле стає брудно-сірим — робимо щільнішим */
+.back-btn {
+    background: rgba(255, 255, 255, 0.92);
+    color: var(--text);
+}
+
+.cross-dots {
+    background: rgba(255, 255, 255, 0.85);
+}

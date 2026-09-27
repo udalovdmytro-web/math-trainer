@@ -85,6 +85,10 @@ Every answer is recorded per fact key (`m:3x7`, `a:5+8`, …) in `state.stats` v
 
 `saveSession()` records now carry `coins` — the coins actually awarded in that session (`state.sessionCoins`, accumulated in `awardCorrect()`, plus an exam pass bonus). `showParentReport()` (menu → 📊 Звіт для батьків) breaks today's coins down by mode + difficulty with percentage shares, flags farmable rows (`isFarmRow()` — single-digit ×2/×5 custom mixes), and compares the reconstructed total against `daily.count` and the balance, so a suspicious jump can be traced. Records saved before this feature have no `coins` field and are reconstructed from current `MODE_META` rates by `sessionCoinsOf()` — the report labels those as approximate.
 
+### Visual theme
+
+The current look is a **Halloween night theme** (the child's request): a dark navy sky with a moon and a pumpkin glow, floating 🎃👻🦇 decorations (`createFloatingDecorations()` item list), and **rainbow problem digits** (`.problem-num`, `.crossing-num` — a top-to-bottom gradient via `background-clip: text`, so even a single digit shows every colour). The whole theme lives in one block at the end of `style.css` (overriding `--bg-gradient` and the colours of text that sits directly on the page background), so it can be swapped for another season without touching the rest. Because the background is dark, **any new text placed directly on the page background (not inside a white card) must use `var(--text-on-bg)`** — the pastel `--text`/`--text-light` vars are for text on white/pastel cards and are unreadable on the night sky.
+
 ## Conventions
 
 - **All user-facing text is Ukrainian.** Code comments are a mix of Ukrainian/Russian/English; write new UI strings in Ukrainian.
