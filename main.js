@@ -52,12 +52,14 @@ const CONFIG = {
     dailyGoal: 100,          // legacy (v1 goal of 100 answers); kept to migrate old saves' streaks
     dailyBonus: 50,          // coins for the FIRST completed daily task each day (also grows the streak)
     dailyRepeatBonus: 15,    // coins for every following completed daily task the same day
+    multRewardFull: 2,       // множення «Вся таблиця» — монет за відповідь
+    multRewardOther: 1,      // окремі таблиці 3–9 і «Свій мікс»; за множення на 2 — 0 завжди
     easyDailyAnswers: 20,    // скільки відповідей на «легкому» контенті (2/5) оплачується за день ≈ одна сесія
     examMaxErrors: 2,        // exam is passed with fewer than 3 mistakes (i.e. ≤ this many)
     examPassBonus: 50,       // coins for passing the exam
     goatExamMax: 30,         // goat exam: +/− within this bound (crossing-ten only)
-    goatOpMin: 3,            // goat exam: the added/subtracted operand is a single digit in this range
-    goatOpMax: 9,            //   (e.g. 25−8, 17+4 — never 23−15)
+    goatOpMin: 3,            // «Тренування на Весну»: скільки додаємо / віднімаємо — від goatOpMin
+    goatOpMax: 19,           //   до goatOpMax (25−8, 8+15, 24−13), завжди з переходом через десяток
     goatExamPassBonus: 100,  // coins for passing the goat exam (the real prize is the Goat Simulator DLC)
     robuxRate: 10,           // coins per 1 Robux
     robuxDailyLimit: 30,     // max Robux the child can exchange per day (budget guard)
@@ -82,14 +84,20 @@ const MODE_META = {
     multiplication: { icon: '✖️', label: 'Множення',    color: 'var(--mint)',       reward: 2 },
     division:       { icon: '➗',  label: 'Ділення',     color: 'var(--sky)',        reward: 2 },
     plusminus:      { icon: '➕➖', label: 'Плюс-мінус',  color: 'var(--peach)',      reward: 2 },
-    logic:          { icon: '🧩', label: 'Логіка',      color: 'var(--peach)',      reward: 3 },
+    logic:          { icon: '🧩', label: 'Логіка',      color: 'var(--peach)',      reward: 2 },
     blitz:          { icon: '⏱️', label: 'Бліц-Турнір', color: 'var(--yellow)',     reward: 1 },
     exam:           { icon: '📝', label: 'Екзамен',     color: 'var(--gold)' }, // reward handled at completion
-    goatexam:       { icon: '🐐', label: 'Екзамен козла', color: '#CBE8A8' }    // pass bonus at completion, like the exam
+    goatexam:       { icon: '🌷', label: 'Тренування на Весну', color: '#CBE8A8' } // бонус за проходження в кінці, як в екзамені
 };
 
-// Both exams share the same silent-run pipeline (no per-answer feedback/coins)
+// Режими з готовою чергою на 100 прикладів і бонусом за проходження (без монет за відповідь).
+// id «goatexam» лишився від «Екзамену козла» — зараз це «Тренування на Весну»; не перейменовуємо,
+// щоб не зламати історію та статистику.
 function isExamMode(mode) { return mode === 'exam' || mode === 'goatexam'; }
+
+// «Тихий» екзамен — без підказок «правильно/ні» під час проходження. Тепер це лише множення:
+// «Тренування на Весну» показує результат і пояснює кожну помилку.
+function isSilentExam(mode) { return mode === 'exam'; }
 
 function modeLabel(mode) { return (MODE_META[mode] && MODE_META[mode].label) || mode; }
 
@@ -513,7 +521,7 @@ function resumeSession() {
     if (btd) btd.style.display = 'none';
     document.getElementById('progress-display').style.display = 'block';
     document.getElementById('score-value').textContent = state.score;
-    document.getElementById('score-display').style.display = isExamMode(s.mode) ? 'none' : '';
+    document.getElementById('score-display').style.display = isSilentExam(s.mode) ? 'none' : '';
     document.getElementById('progress-total').textContent = state.totalRounds;
 
     showScreen('screen-game');
@@ -600,9 +608,17 @@ function showSubMenu(mode) {
     submenuContainer.classList.toggle('dense', dense);
     document.getElementById('screen-submenu').classList.toggle('dense', dense);
 
-    // Badge reflects the actual per-answer coins (MODE_META), so it never drifts from reality
-    const modeReward = (MODE_META[mode] && MODE_META[mode].reward) || 1;
+    // Бейдж показує справжні монети за відповідь для кожного варіанту
+    const optionReward = opt => {
+        if (mode === 'multiplication') {
+            if (opt.minA === 2 && opt.maxA === 2) return 0;
+            if (!opt.custom && opt.minA === 2 && opt.maxA === 9) return CONFIG.multRewardFull;
+            return CONFIG.multRewardOther;
+        }
+        return (MODE_META[mode] && MODE_META[mode].reward) || 1;
+    };
     config.options.forEach((opt, i) => {
+        const r = optionReward(opt);
         const card = document.createElement('div');
         card.className = 'difficulty-card slide-up';
         card.style.animationDelay = `${i * 0.05}s`;
@@ -610,7 +626,7 @@ function showSubMenu(mode) {
             <span class="diff-emoji">${opt.emoji}</span>
             <div class="diff-label">${opt.label}</div>
             <div class="diff-desc">${opt.desc}</div>
-            <div class="diff-reward">+${modeReward} 💰</div>
+            <div class="diff-reward">${r ? '+' + r + ' 💰' : 'без монет'}</div>
         `;
         card.onclick = () => {
             if (opt.custom) { openMixModal(mode); return; } // let the child pick the numbers
@@ -817,20 +833,34 @@ function activeFactors() {
     return out;
 }
 
-// Тривіальний контент — тренування лише на 2 і/або 5 (вивчено напам'ять, легко фармити монети).
+// Тривіальний контент у діленні — лише на 2 і/або 5 (вивчено напам'ять, легко фармити монети).
 // Працює і для «Свого міксу», бо дивиться на activeFactors(), а не на minA/maxA.
+// Для множення діє власна шкала (multAnswerReward), тож ліміт тут — лише для ділення.
 function isTrivialDrill() {
-    if (state.mode !== 'multiplication' && state.mode !== 'division') return false;
+    if (state.mode !== 'division') return false;
     const f = activeFactors();
     return f.length > 0 && f.every(x => x === 2 || x === 5);
+}
+
+// Множення: за «× 2» монет немає взагалі; «Вся таблиця» — multRewardFull;
+// окремі таблиці 3–9 і «Свій мікс» — multRewardOther.
+function isFullTable() {
+    return !(state.factors && state.factors.length) && state.minA === 2 && state.maxA === 9;
+}
+
+function multAnswerReward() {
+    const p = state.currentProblem;
+    if (p && (p.a === 2 || p.b === 2)) return 0;
+    return isFullTable() ? CONFIG.multRewardFull : CONFIG.multRewardOther;
 }
 
 // Build the candidate pool for the current multiplication/division difficulty.
 function buildFactPool(mode) {
     const pool = [];
     const factors = activeFactors(); // явний мікс має пріоритет над діапазоном minA..maxA
+    // Без найлегших прикладів: множник / частка лише 3..9 (ні «× 2», ні «× 10», ні «4 ÷ 2»)
     for (const x of factors) {
-        for (let q = 2; q <= 10; q++) {
+        for (let q = 3; q <= 9; q++) {
             if (mode === 'multiplication') {
                 pool.push({ a: x, b: q, answer: x * q, factKey: `m:${x}x${q}` });
             } else { // division: x is divisor, q is quotient, dividend = x*q
@@ -844,6 +874,7 @@ function buildFactPool(mode) {
 // ===== PROBLEM GENERATION =====
 function generateProblem() {
     let a, b, answer, opSymbol;
+    let logicKey = null; // для логіки ключ статистики — тип завдання
 
     if (state.mode === 'blitz') {
         // Тільки з переходом через десяток: інакше бліц — найшвидший спосіб фармити монети
@@ -905,46 +936,60 @@ function generateProblem() {
             break;
         }
 
-        case 'logic':
-            // Логіка платить найбільше за відповідь, тож і приклади мають бути непростими:
-            // рівняння з + і −, числа до 30; ряди з кроком 2..9, зростаючі та спадні.
-            if (state.logicMode === 'equation') {
-                const small = randomInt(3, 9);          // однозначний доданок / від'ємник
-                const res = randomInt(12, 30);
-                switch (randomInt(0, 3)) {
-                    case 0:                              // ? + small = res
-                        answer = res - small; a = `? + ${small} = ${res}`; break;
-                    case 1:                              // small + ? = res
-                        answer = res - small; a = `${small} + ? = ${res}`; break;
-                    case 2: {                            // ? − small = r  (шукаємо зменшуване)
-                        const r = randomInt(4, 21);
-                        answer = r + small; a = `? − ${small} = ${r}`; break;
-                    }
-                    default:                             // res − ? = small
-                        answer = res - small; a = `${res} − ? = ${small}`; break;
-                }
-                b = '';
-                opSymbol = '';
-            } else {
-                const step = randomInt(2, 9);
-                if (randomInt(0, 1) === 1) {             // спадний ряд
-                    const start = randomInt(3 * step + 2, 40);
-                    a = `${start}, ${start - step}, ${start - 2 * step},`;
-                    answer = start - 3 * step;
-                } else {                                 // зростаючий ряд
-                    const start = randomInt(1, 12);
-                    a = `${start}, ${start + step}, ${start + 2 * step},`;
-                    answer = start + 3 * step;
-                }
-                b = '';
-                opSymbol = '';
-            }
+        case 'logic': {
+            // Адаптивно: обираємо ТИП завдання за статистикою (де були помилки чи довгі
+            // роздуми — те й частіше), а конкретні числа — випадково в межах типу.
+            const cat = pickWeightedFact(logicCategories(state.logicMode));
+            const q = cat.gen();
+            a = q.text; b = ''; opSymbol = ''; answer = q.answer;
+            logicKey = cat.factKey;
             break;
+        }
     }
 
-    const factKey = factKeyFor(state.mode, a, b, opSymbol);
+    const factKey = logicKey || factKeyFor(state.mode, a, b, opSymbol);
     state.lastFactKey = factKey;
     return { a, b, answer, opSymbol, factKey };
+}
+
+// ===== ЛОГІКА: типи завдань для адаптивності =====
+// Рівняння: 4 форми × 2 розміри чисел (до 20 / 21–30) = 8 типів.
+// Ряди: зростаючі й спадні × крок 2..9 = 16 типів.
+// Статистика ведеться по типах (ключі «le:…» / «ls:…»), бо окремих прикладів сотні.
+function logicCategories(logicMode) {
+    const cats = [];
+    if (logicMode === 'equation') {
+        const FORMS = [
+            (s, r) => ({ text: `? + ${s} = ${r}`, answer: r - s, big: r }),
+            (s, r) => ({ text: `${s} + ? = ${r}`, answer: r - s, big: r }),
+            (s, r) => ({ text: `? − ${s} = ${r - s}`, answer: r, big: r }),      // шукаємо зменшуване
+            (s, r) => ({ text: `${r} − ? = ${s}`, answer: r - s, big: r }),
+        ];
+        FORMS.forEach((form, fi) => {
+            ['s', 'b'].forEach(band => {
+                cats.push({
+                    factKey: `le:${fi}:${band}`,
+                    gen: () => {
+                        const s = randomInt(3, 9);                     // однозначний доданок / від'ємник
+                        const r = band === 's' ? randomInt(12, 20) : randomInt(21, 30);
+                        return form(s, r);
+                    }
+                });
+            });
+        });
+    } else {
+        for (let step = 2; step <= 9; step++) {
+            cats.push({ factKey: `ls:up:${step}`, gen: () => {
+                const start = randomInt(1, 12);
+                return { text: `${start}, ${start + step}, ${start + 2 * step},`, answer: start + 3 * step };
+            } });
+            cats.push({ factKey: `ls:down:${step}`, gen: () => {
+                const start = randomInt(3 * step + 2, 40);
+                return { text: `${start}, ${start - step}, ${start - 2 * step},`, answer: start - 3 * step };
+            } });
+        }
+    }
+    return cats;
 }
 
 function randomInt(min, max) {
@@ -1097,27 +1142,53 @@ function startExam() {
     nextProblem();
 }
 
-// ===== GOAT EXAM (🐐 Симулятор екзамену козла) =====
-// 100 прикладів на + і − в межах goatExamMax (30): перше число будь-яке,
-// а додаємо/віднімаємо лише однозначне goatOpMin..goatOpMax (3–9), як-от 25−8 чи 17+4.
-// УСІ приклади з переходом через десяток: додавання — одиниці a + b > 10,
-// віднімання — з позикою з десятка (одиниці a < b). Тож 2+3, 15+1 чи 26−4 не трапляються.
+// ===== 🌷 ТРЕНУВАННЯ НА ВЕСНУ (колишній «Симулятор екзамену козла», id — goatexam) =====
+// 100 прикладів на + і − у межах goatExamMax (30); додаємо / віднімаємо goatOpMin..goatOpMax
+// (3–19): 25−8, 8+15, 24−13. УСІ з переходом через десяток — дивимось на одиниці:
+// додавання — одиниці a + одиниці b > 10; віднімання — позика (одиниці a < одиниць b).
+// Тож 2+3, 15+1, 26−4 чи 25−15 не трапляються. На кожну помилку — пояснення (springHint).
 function buildGoatCrossingPools() {
     const max = CONFIG.goatExamMax;
     const addPool = [], subPool = [];
     for (let b = CONFIG.goatOpMin; b <= CONFIG.goatOpMax; b++) {
         for (let a = 2; a + b <= max; a++) {
-            if ((a % 10) + b > 10) {
+            if ((a % 10) + (b % 10) > 10) {
                 addPool.push({ a, b, answer: a + b, opSymbol: '+', factKey: `a:${a}+${b}` });
             }
         }
-        for (let a = 11; a <= max; a++) {
-            if ((a % 10) < b) {
+        for (let a = b + 1; a <= max; a++) {
+            if ((a % 10) < (b % 10)) {
                 subPool.push({ a, b, answer: a - b, opSymbol: '−', factKey: `s:${a}-${b}` });
             }
         }
     }
     return { addPool, subPool };
+}
+
+// Покрокове пояснення «як треба було рахувати» для прикладу через десяток.
+// Двоцифрове число розкладаємо: спершу десяток, потім одиниці через круглий десяток.
+//   17 + 6  → 17 + 3 = 20, лишилось 3 → 20 + 3 = 23
+//   8 + 15  → 8 + 10 = 18; 18 + 2 = 20, лишилось 3 → 20 + 3 = 23
+//   24 − 15 → 24 − 10 = 14; 14 − 4 = 10, ще 1 → 10 − 1 = 9
+function springHint(a, b, op, answer) {
+    const tens = Math.floor(b / 10) * 10, units = b % 10;
+    // один крок через круглий десяток: «до 20 → 17 + 3 = 20, лишилось 3 → 20 + 3 = 23»
+    const viaTen = cur => {
+        if (op === '+') {
+            const toTen = 10 - (cur % 10), round = cur + toTen, rest = units - toTen;
+            return `спочатку до ${round} → ${cur} + ${toTen} = ${round}, лишилось ${rest} → ${round} + ${rest} = ${answer}`;
+        }
+        const toTen = cur % 10, round = cur - toTen, rest = units - toTen;
+        if (toTen === 0) return `${cur} − ${units} = ${answer}`;
+        return `спочатку до ${round} → ${cur} − ${toTen} = ${round}, ще ${rest} → ${round} − ${rest} = ${answer}`;
+    };
+    if (!tens) return `💡 ${a} ${op} ${b}: ${viaTen(a)}`;
+    const cur = op === '+' ? a + tens : a - tens;
+    return [
+        `💡 Як рахувати ${a} ${op} ${b}:`,
+        `1) Спочатку десяток: ${a} ${op} ${tens} = ${cur}`,
+        `2) Тепер ${cur} ${op} ${units}: ${viaTen(cur)}`,
+    ].join('\n');
 }
 
 // Зважений відбір без повторів: слабкі/повільні факти мають більший шанс потрапити
@@ -1149,7 +1220,7 @@ function startGoatExam() {
     if (blockedBySession()) return; // resume the unfinished session instead of restarting
     state.mode = 'goatexam';
     state.inputMode = 'numpad';
-    state.difficultyLabel = 'Екзамен козла 🐐';
+    state.difficultyLabel = 'Тренування на Весну 🌷';
     state.crossingTens = false;
     state.factors = null;
     state.examQueue = buildGoatExamQueue();
@@ -1164,8 +1235,8 @@ function startGoatExam() {
     const btd = document.getElementById('blitz-timer-display');
     if (btd) btd.style.display = 'none';
     document.getElementById('progress-display').style.display = 'block';
-    // No right/wrong hints until the end — same silent run as the multiplication exam
-    document.getElementById('score-display').style.display = 'none';
+    // Тренування: рахунок видно, помилки пояснюємо одразу
+    document.getElementById('score-display').style.display = '';
     document.getElementById('score-value').textContent = '0';
     document.getElementById('progress-total').textContent = state.totalRounds;
 
@@ -1545,6 +1616,16 @@ function awardCorrect(timeTaken) {
 
     const meta = MODE_META[state.mode] || {};
     let earned = state.crossingTens ? (meta.crossingReward || 2) : (meta.reward || 1);
+    if (state.mode === 'multiplication') {
+        earned = multAnswerReward();
+        if (earned === 0) {
+            if (!state.daily.multLimits) state.daily.multLimits = {};
+            if (!state.daily.multLimits.twoNotice) {
+                state.daily.multLimits.twoNotice = true; // раз на день, щоб не набридати
+                showNotification('За множення на 2 монет немає 🙂', 'Це вже зовсім легко! Монети дають за таблиці від 3 і більше.', '💡');
+            }
+        }
+    }
     if (isExamMode(state.mode)) earned = 0; // екзамени оплачуються бонусом у кінці, не за відповідь
 
     // Anti-farming: тривіальний контент (лише 2 і/або 5) оплачується обмежено за день —
@@ -1613,10 +1694,16 @@ function handleResult(correct, userAnswer, btnElement) {
     const timeTaken = Date.now() - state.problemStartTime;
     recordStat(state.currentProblem && state.currentProblem.factKey, correct, timeTaken);
 
-    // Exams: no right/wrong feedback during the run — just record and move on
-    if (isExamMode(state.mode)) {
+    // Тихий екзамен: без «правильно/ні» під час проходження — лише записуємо й далі
+    if (isSilentExam(state.mode)) {
         handleExamResult(correct, userAnswer, timeTaken);
         return;
+    }
+
+    // Тренування на Весну веде той самий журнал, що й екзамен (таблиця, помилки, історія)
+    if (state.mode === 'goatexam') {
+        const p = state.currentProblem;
+        state.examResults.push({ a: p.a, b: p.b, op: p.opSymbol, answer: p.answer, user: userAnswer, correct, timeMs: timeTaken });
     }
 
     // Per-question log for the end-of-session results table (+/- family)
@@ -1679,9 +1766,11 @@ function handleResult(correct, userAnswer, btnElement) {
         // Teaching moment: show the "make ten" method for a missed +/- fact.
         // The hint stays until the child closes it (×) — no auto-advance while it's up.
         let hintPaused = false;
-        if (['addition', 'subtraction', 'plusminus'].includes(state.mode)) {
+        if (['addition', 'subtraction', 'plusminus', 'goatexam'].includes(state.mode)) {
             const p = state.currentProblem;
-            const h = makeTenHint(p.a, p.b, p.opSymbol, p.answer);
+            const h = state.mode === 'goatexam'
+                ? springHint(p.a, p.b, p.opSymbol, p.answer)
+                : makeTenHint(p.a, p.b, p.opSymbol, p.answer);
             if (h) {
                 document.getElementById('hint-text').textContent = h;
                 document.getElementById('hint').classList.add('show');
@@ -1764,12 +1853,12 @@ function showCompletion() {
     } else if (isExam) {
         const passBonus = isGoat ? CONFIG.goatExamPassBonus : CONFIG.examPassBonus;
         if (examPassed) {
-            completeEmoji.textContent = isGoat ? '🐐' : '🏆';
+            completeEmoji.textContent = isGoat ? '🌷' : '🏆';
             if (isGoat) {
                 subtitle.textContent = (examErrors === 0
-                    ? 'Екзамен козла складено без помилок! 🐐'
-                    : `Екзамен козла складено! Помилок: ${examErrors}. 🐐`)
-                    + ` +${passBonus} 💰 Кажи татові — він обіцяв доповнення! 🎮`;
+                    ? 'Тренування на Весну пройдено без помилок! 🌷'
+                    : `Тренування на Весну пройдено! Помилок: ${examErrors}. 🌷`)
+                    + ` +${passBonus} 💰`;
             } else {
                 subtitle.textContent = (examErrors === 0
                     ? 'Екзамен складено без помилок!'
@@ -1779,9 +1868,9 @@ function showCompletion() {
             updateEconomyUI();
             saveGame(true);
         } else {
-            completeEmoji.textContent = isGoat ? '🐐' : '💪';
+            completeEmoji.textContent = isGoat ? '🌱' : '💪';
             subtitle.textContent = isGoat
-                ? `Не склав: ${examErrors} помилок (можна щонайбільше 2). Козел вірить у тебе — глянь на помилки і спробуй ще! 💪`
+                ? `Помилок: ${examErrors} (щоб пройти — щонайбільше 2). Переглянь пояснення і спробуй ще! 💪`
                 : `Не склав: ${examErrors} помилок (треба менше 3). Подивись, де саме, і спробуй ще!`;
         }
     } else {
