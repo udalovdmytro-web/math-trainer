@@ -12,7 +12,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="style.css?v=40">
+    <link rel="stylesheet" href="style.css?v=41">
     
     <!-- Firebase App (core) -->
     <script src="https://www.gstatic.com/firebasejs/10.9.0/firebase-app-compat.js"></script>
@@ -32,7 +32,7 @@
     <!-- Global Top-Right Stats -->
     <div class="global-stats-header">
         <div class="global-stat">
-            <span class="economy-icon">💰</span>
+            <span class="economy-icon robux-icon" role="img" aria-label="монети"></span>
             <span id="global-total-coins">0</span>
         </div>
         <div class="global-stat robux-stat">
@@ -69,7 +69,7 @@
         <!-- Economy Stats Panel -->
         <div class="economy-panel">
             <div class="economy-item">
-                <span class="economy-icon">💰</span>
+                <span class="economy-icon robux-icon" role="img" aria-label="монети"></span>
                 <span class="economy-value" id="menu-coins">0</span>
             </div>
             <div class="economy-item">
@@ -191,7 +191,7 @@
             </button>
             <div class="game-stats">
                 <div class="game-economy">
-                    <span class="economy-icon">💰</span> <span id="game-coins">0</span>
+                    <span class="economy-icon robux-icon" role="img" aria-label="монети"></span> <span id="game-coins">0</span>
                 </div>
                 <div class="game-economy combo">
                     <span class="economy-icon">🔥</span> <span id="game-combo">0</span>
@@ -234,17 +234,17 @@
             <div class="crossing-input-area">
                 <div class="crossing-input-display" id="crossing-input-display">?</div>
                 <div class="crossing-numpad-grid">
-                    <button class="numpad-btn" onclick="crossingInput(1)">1</button>
-                    <button class="numpad-btn" onclick="crossingInput(2)">2</button>
-                    <button class="numpad-btn" onclick="crossingInput(3)">3</button>
-                    <button class="numpad-btn" onclick="crossingInput(4)">4</button>
-                    <button class="numpad-btn" onclick="crossingInput(5)">5</button>
-                    <button class="numpad-btn" onclick="crossingInput(6)">6</button>
-                    <button class="numpad-btn" onclick="crossingInput(7)">7</button>
-                    <button class="numpad-btn" onclick="crossingInput(8)">8</button>
-                    <button class="numpad-btn" onclick="crossingInput(9)">9</button>
+                    <button class="numpad-btn" onclick="crossingInput(1)"><span class="rainbow-digit">1</span></button>
+                    <button class="numpad-btn" onclick="crossingInput(2)"><span class="rainbow-digit">2</span></button>
+                    <button class="numpad-btn" onclick="crossingInput(3)"><span class="rainbow-digit">3</span></button>
+                    <button class="numpad-btn" onclick="crossingInput(4)"><span class="rainbow-digit">4</span></button>
+                    <button class="numpad-btn" onclick="crossingInput(5)"><span class="rainbow-digit">5</span></button>
+                    <button class="numpad-btn" onclick="crossingInput(6)"><span class="rainbow-digit">6</span></button>
+                    <button class="numpad-btn" onclick="crossingInput(7)"><span class="rainbow-digit">7</span></button>
+                    <button class="numpad-btn" onclick="crossingInput(8)"><span class="rainbow-digit">8</span></button>
+                    <button class="numpad-btn" onclick="crossingInput(9)"><span class="rainbow-digit">9</span></button>
                     <button class="numpad-btn numpad-clear" onclick="crossingClear()">⌫</button>
-                    <button class="numpad-btn" onclick="crossingInput(0)">0</button>
+                    <button class="numpad-btn" onclick="crossingInput(0)"><span class="rainbow-digit">0</span></button>
                     <button class="numpad-btn numpad-submit" onclick="crossingSubmit()">✓</button>
                 </div>
             </div>
@@ -269,19 +269,19 @@
 
         <!-- Numpad input -->
         <div class="numpad-container" id="numpad-container" style="display:none;">
-            <div class="numpad-display" id="numpad-display">?</div>
+            <div class="numpad-display"><span class="rainbow-digit" id="numpad-display">?</span></div>
             <div class="numpad-grid">
-                <button class="numpad-btn" onclick="numpadInput(1)">1</button>
-                <button class="numpad-btn" onclick="numpadInput(2)">2</button>
-                <button class="numpad-btn" onclick="numpadInput(3)">3</button>
-                <button class="numpad-btn" onclick="numpadInput(4)">4</button>
-                <button class="numpad-btn" onclick="numpadInput(5)">5</button>
-                <button class="numpad-btn" onclick="numpadInput(6)">6</button>
-                <button class="numpad-btn" onclick="numpadInput(7)">7</button>
-                <button class="numpad-btn" onclick="numpadInput(8)">8</button>
-                <button class="numpad-btn" onclick="numpadInput(9)">9</button>
+                <button class="numpad-btn" onclick="numpadInput(1)"><span class="rainbow-digit">1</span></button>
+                <button class="numpad-btn" onclick="numpadInput(2)"><span class="rainbow-digit">2</span></button>
+                <button class="numpad-btn" onclick="numpadInput(3)"><span class="rainbow-digit">3</span></button>
+                <button class="numpad-btn" onclick="numpadInput(4)"><span class="rainbow-digit">4</span></button>
+                <button class="numpad-btn" onclick="numpadInput(5)"><span class="rainbow-digit">5</span></button>
+                <button class="numpad-btn" onclick="numpadInput(6)"><span class="rainbow-digit">6</span></button>
+                <button class="numpad-btn" onclick="numpadInput(7)"><span class="rainbow-digit">7</span></button>
+                <button class="numpad-btn" onclick="numpadInput(8)"><span class="rainbow-digit">8</span></button>
+                <button class="numpad-btn" onclick="numpadInput(9)"><span class="rainbow-digit">9</span></button>
                 <button class="numpad-btn numpad-clear" onclick="numpadClear()">⌫</button>
-                <button class="numpad-btn" onclick="numpadInput(0)">0</button>
+                <button class="numpad-btn" onclick="numpadInput(0)"><span class="rainbow-digit">0</span></button>
                 <button class="numpad-btn numpad-submit" onclick="numpadSubmit()">✓</button>
             </div>
         </div>
@@ -359,7 +359,7 @@
         <div class="shop-header">
             <h2 class="shop-title">🛒 Магазин</h2>
             <div class="economy-item large">
-                <span class="economy-icon">💰</span>
+                <span class="economy-icon robux-icon" role="img" aria-label="монети"></span>
                 <span class="economy-value" id="shop-coins">0</span>
             </div>
             <div class="economy-item large" title="Robux до видачі">
@@ -513,7 +513,7 @@
         </div>
     </div>
 
-    <script src="firebase-config.js?v=40"></script>
-    <script src="main.js?v=40"></script>
+    <script src="firebase-config.js?v=41"></script>
+    <script src="main.js?v=41"></script>
 </body>
 </html>
