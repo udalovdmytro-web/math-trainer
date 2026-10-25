@@ -61,6 +61,15 @@ const CONFIG = {
     goatOpMin: 3,            // «Тренування на Весну»: скільки додаємо / віднімаємо — від goatOpMin
     goatOpMax: 19,           //   до goatOpMax (25−8, 8+15, 24−13), завжди з переходом через десяток
     goatExamPassBonus: 100,  // coins for passing the goat exam (the real prize is the Goat Simulator DLC)
+    // Ставки модуля англійської (english/english.js). Їх змінює лише математична сесія —
+    // модуль читає ці числа й нараховує монети тільки через awardCoins().
+    english: {
+        rewardTyped: 2,      // відповідь, набрана самостійно (слово, літери)
+        rewardChoice: 1,     // вибір із варіантів / тап по картинці — вгадується, тому дешевше
+        rewardMastered: 0,   // уже вивчене слово (як «× 2» у множенні) — без монет
+        firstTryOnly: true,  // монети лише за правильну відповідь з першої спроби
+    },
+    maxAwardPerCall: 200,    // запобіжник awardCoins(): більше за один виклик не нараховуємо (ловить баги)
     robuxRate: 10,           // coins per 1 Robux
     robuxDailyLimit: 30,     // max Robux the child can exchange per day (budget guard)
     saveDebounceMs: 2000,    // coalesce Firebase writes within this window
@@ -101,22 +110,119 @@ function isSilentExam(mode) { return mode === 'exam'; }
 
 function modeLabel(mode) { return (MODE_META[mode] && MODE_META[mode].label) || mode; }
 
+// ===== ПРЕДМЕТИ (математика + модулі з інших сесій, напр. english/english.js) =====
+// Математика вбудована. Інші предмети реєструються зі своїх файлів викликом registerSubject()
+// під час завантаження скрипта. Поки зареєстровано лише математику, вибору предмета немає —
+// після входу одразу відкривається меню, як і раніше.
+const SUBJECTS = [
+    { id: 'math', icon: '🧮', label: 'Математика', desc: 'Приклади, таблиця множення, логіка', start: () => goToMenu() }
+];
+
+// subj: { id, icon, label, desc, start(), onLogin(userDoc)?, onLogout()? }
+function registerSubject(subj) {
+    if (!subj || !subj.id || typeof subj.start !== 'function') {
+        console.warn('registerSubject: потрібні id і start()', subj);
+        return false;
+    }
+    if (SUBJECTS.some(x => x.id === subj.id)) {
+        console.warn('registerSubject: такий предмет уже є', subj.id);
+        return false;
+    }
+    SUBJECTS.push(subj);
+    return true;
+}
+
+// Хуки предметів обгорнуті в try/catch: помилка в іншому модулі не має ламати вхід у математику.
+function callSubjectHook(name, arg) {
+    SUBJECTS.forEach(x => {
+        if (typeof x[name] !== 'function') return;
+        try { x[name](arg); } catch (e) { console.error(`Предмет «${x.id}»: помилка в ${name}()`, e); }
+    });
+}
+
+// Куди йти після входу: вибір предмета, якщо їх більше одного, інакше — меню математики.
+function enterApp() {
+    if (SUBJECTS.length > 1) showSubjectPicker();
+    else goToMenu();
+}
+
+function showSubjectPicker() {
+    const list = document.getElementById('subject-list');
+    list.innerHTML = '';
+    SUBJECTS.forEach(x => {
+        const card = document.createElement('div');
+        card.className = 'subject-card';
+        card.id = 'subject-' + x.id;
+        card.innerHTML = `
+            <div class="subject-icon">${x.icon || '📘'}</div>
+            <div class="subject-text">
+                <div class="subject-label">${x.label}</div>
+                <div class="subject-desc">${x.desc || ''}</div>
+            </div>`;
+        card.onclick = () => {
+            try { x.start(); }
+            catch (e) {
+                console.error(`Предмет «${x.id}»: помилка в start()`, e);
+                showNotification('Ой, цей розділ ще не працює', 'Спробуй інший предмет 🙂', '🛠️');
+            }
+        };
+        list.appendChild(card);
+    });
+    showScreen('screen-subject');
+}
+
+// Режими інших предметів — для історії, календаря і звіту батькам.
+// id обов'язково з префіксом предмета («en-words», «en-letters»…), тож з математикою не перетнуться.
+function registerMode(id, meta) {
+    if (!/^[a-z]{2}-[a-z0-9-]+$/.test(id) || MODE_META[id]) {
+        console.warn('registerMode: id має бути новим і з префіксом предмета (en-…)', id);
+        return false;
+    }
+    MODE_META[id] = meta;
+    return true;
+}
+
+// ЄДИНИЙ спосіб для інших предметів нарахувати монети. Баланс спільний (state.coins), а пише
+// його в базу лише математика (saveGame) — тож він ніколи не роздвоюється між предметами.
+// source — підпис для журналу, напр. 'en-words'.
+function awardCoins(amount, source) {
+    if (!Number.isInteger(amount) || amount < 0 || amount > CONFIG.maxAwardPerCall) {
+        console.warn('awardCoins: відхилено', amount, source);
+        return 0;
+    }
+    if (!state.userId || amount === 0) return 0;
+    state.coins += amount;
+    updateEconomyUI();
+    saveGame();
+    return amount;
+}
+
+// Завершена сесія іншого предмета → у спільну історію (календар, звіт батькам, досягнення).
+// coins — скільки монет фактично нараховано за сесію через awardCoins().
+function recordSubjectSession(mode, label, correct, total, coins, extra) {
+    if (!MODE_META[mode]) console.warn('recordSubjectSession: спершу registerMode()', mode);
+    saveSession(mode, label, correct, total, Object.assign({}, extra || {}, { coins: coins || 0 }));
+}
+
 // ===== FIREBASE & HISTORY =====
 async function saveToFirebase() {
     if (!state.userId) return;
+    const data = {
+        coins: state.coins,
+        combo: state.combo,
+        robloxTime: state.robloxTime,
+        robuxOwed: state.robuxOwed || 0,
+        daily: state.daily,
+        achievements: state.achievements,
+        blitzRecord: state.blitzRecord,
+        history: state.history,
+        stats: state.stats,
+        activeSession: state.session || null
+    };
     try {
-        await db.collection("users").doc(state.userId).set({
-            coins: state.coins,
-            combo: state.combo,
-            robloxTime: state.robloxTime,
-            robuxOwed: state.robuxOwed || 0,
-            daily: state.daily,
-            achievements: state.achievements,
-            blitzRecord: state.blitzRecord,
-            history: state.history,
-            stats: state.stats,
-            activeSession: state.session || null
-        });
+        // mergeFields: замінюємо цілком лише ці поля. Дані інших предметів (поле «english»)
+        // лежать у тому ж документі — звичайний set() стирав би їх при кожному збереженні.
+        await db.collection("users").doc(state.userId).set(data, { mergeFields: Object.keys(data) });
     } catch (e) {
         console.error("Ошибка сохранения в Firebase: ", e);
     }
@@ -297,8 +403,10 @@ async function handleLogin() {
     try {
         const docRef = db.collection("users").doc(pin);
         const docSnap = await docRef.get();
+        let userDoc = {};   // увесь документ — іншим предметам (вони беруть своє поле, напр. english)
         if (docSnap.exists) {
             const data = docSnap.data();
+            userDoc = data;
             state.coins = data.coins || 0;
             state.combo = data.combo || 0;
             state.robloxTime = data.robloxTime || data.robux || 0;
@@ -333,9 +441,10 @@ async function handleLogin() {
         localStorage.setItem('savedPin', pin);
         checkDailyReset();
         updateEconomyUI();
+        callSubjectHook('onLogin', userDoc);
         document.getElementById('btn-login').textContent = 'Увійти';
         document.getElementById('login-pin').value = '';
-        goToMenu();
+        enterApp();
     } catch (e) {
         console.error("Ошибка входа: ", e);
         errorEl.textContent = 'Помилка: ' + (e.message || 'Невідомо');
@@ -368,6 +477,7 @@ function showNotification(title, desc, emoji) {
 
 function handleLogout() {
     saveGame(true); // flush any pending progress before switching profile
+    callSubjectHook('onLogout');
     localStorage.removeItem('savedPin');
     state.userId = null;
     showScreen('screen-login');
@@ -412,6 +522,8 @@ function goToMenu() {
     document.getElementById('crossing-container').style.display = 'none';
     document.getElementById('problem-container').style.display = '';
     updateResumeBanner();
+    const sw = document.getElementById('btn-switch-subject');
+    if (sw) sw.style.display = SUBJECTS.length > 1 ? '' : 'none';
     showScreen('screen-menu');
 }
 

@@ -12,7 +12,9 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="style.css?v=41">
+    <link rel="stylesheet" href="style.css?v=42">
+    <!-- 🇬🇧 Модуль англійської — свій номер версії, його оновлює лише англійська сесія -->
+    <link rel="stylesheet" href="english/english.css?v=1">
     
     <!-- Firebase App (core) -->
     <script src="https://www.gstatic.com/firebasejs/10.9.0/firebase-app-compat.js"></script>
@@ -55,6 +57,23 @@
             <button class="login-btn" onclick="handleLogin()" id="btn-login">Увійти</button>
             <p class="login-error" id="login-error" style="display:none;">Введіть 4 цифри!</p>
             <p class="login-desc">Прогрес і монети прив'яжуться до цього коду.</p>
+        </div>
+    </div>
+
+    <!-- ===== SUBJECT PICKER — показується після входу, коли предметів більше одного ===== -->
+    <div id="screen-subject" class="screen">
+        <header class="app-header">
+            <div class="header-stars">✨</div>
+            <h1 class="app-title">Що вчимо?</h1>
+            <p class="app-subtitle">Обери предмет</p>
+        </header>
+        <div class="subject-list" id="subject-list">
+            <!-- Заповнюється з SUBJECTS (main.js) -->
+        </div>
+        <div class="logout-btn-container">
+            <button class="logout-btn" onclick="handleLogout()">
+                🚪 Змінити профіль
+            </button>
         </div>
     </div>
 
@@ -161,8 +180,11 @@
             </button>
         </div>
 
-        <!-- Logout container -->
+        <!-- Logout container (+ «Інший предмет», коли предметів кілька) -->
         <div class="logout-btn-container">
+            <button class="logout-btn switch-subject-btn" id="btn-switch-subject" onclick="showSubjectPicker()" style="display:none;">
+                🔀 Інший предмет
+            </button>
             <button class="logout-btn" onclick="handleLogout()">
                 🚪 Змінити профіль
             </button>
@@ -513,7 +535,9 @@
         </div>
     </div>
 
-    <script src="firebase-config.js?v=41"></script>
-    <script src="main.js?v=41"></script>
+    <script src="firebase-config.js?v=42"></script>
+    <script src="main.js?v=42"></script>
+    <!-- 🇬🇧 Модуль англійської (реєструється через registerSubject) — свій номер версії -->
+    <script src="english/english.js?v=1"></script>
 </body>
 </html>

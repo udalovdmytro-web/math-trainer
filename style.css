@@ -2466,3 +2466,64 @@ body {
 .hint-text {
     white-space: pre-line;
 }
+
+/* ===== ВИБІР ПРЕДМЕТА (після входу, коли предметів більше одного) ===== */
+.subject-list {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+    width: 100%;
+    max-width: 420px;
+    margin-top: 28px;
+}
+
+.subject-card {
+    display: flex;
+    align-items: center;
+    gap: 18px;
+    padding: 26px 24px;
+    border-radius: var(--radius-lg);
+    background: var(--white);
+    border: 3px solid var(--sky);
+    box-shadow: 0 6px 18px rgba(132, 201, 245, 0.35);
+    cursor: pointer;
+    transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.subject-card:active {
+    transform: scale(0.97);
+}
+
+#subject-math    { border-color: var(--mint-dark); }
+#subject-english { border-color: var(--pink-dark); }
+
+.subject-icon {
+    font-size: 2.8rem;
+    width: 68px;
+    height: 68px;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--bg);
+    border-radius: 18px;
+}
+
+.subject-label {
+    font-size: 1.5rem;
+    font-weight: 900;
+    color: var(--text);
+}
+
+.subject-desc {
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: var(--text-light);
+    margin-top: 2px;
+}
+
+.switch-subject-btn {
+    margin-bottom: 10px;
+    border-color: var(--sky-dark);
+    color: var(--text-on-bg);
+}

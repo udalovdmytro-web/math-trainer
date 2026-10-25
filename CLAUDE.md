@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-A kid-facing math trainer (Ukrainian UI, built for a first-grader) — a single-page vanilla JS web app with no build step, no framework, no package.json, no tests, and no linter. Data persists to Firebase Firestore.
+A kid-facing learning app (Ukrainian UI, built for a first-grader) — a single-page vanilla JS web app with no build step, no framework, no package.json, no tests, and no linter. Data persists to Firebase Firestore. It started as a math trainer; an **English module is being added in a separate Claude session** — see «Subjects and the two-session setup» below before touching login, coins, saving or `index.html`.
 
 ## Running it
 
@@ -28,10 +28,11 @@ Pushing to `main` deploys to GitHub Pages via `.github/workflows/deploy-pages.ym
 - `main.js` — all logic (~2300 lines), organized in `// ===== SECTION =====` blocks. No modules, no classes; global functions and a single global `state` object.
 - `style.css` — all styles; design tokens (pastel palette, shadows, radii) are CSS custom properties in `:root`.
 - `firebase-config.js` — Firebase init; exposes global `db` (Firestore). Client-side keys, intentionally committed.
+- `english/` — the English module (`english.js`, `english.css`, its own `CLAUDE.md`). **Owned by the English session**; the math session doesn't edit it.
 
 ## Cache busting (easy to forget)
 
-Static assets are referenced with a version query (`style.css?v=30`, `main.js?v=30`, `firebase-config.js?v=30`) in `index.html`. When you change any of these files, bump the `?v=` number on **all three** references so users don't get stale cached scripts.
+Static assets are referenced with a version query (`style.css?v=N`, `main.js?v=N`, `firebase-config.js?v=N`) in `index.html`. When you change any of these files, bump the `?v=` number on **all three** references so users don't get stale cached scripts. The English module has its **own** numbers (`english/english.css?v=M`, `english/english.js?v=M`), bumped only by the English session; a comment line separates them from the core tags so the two sessions' bumps never land in the same diff hunk.
 
 ## Architecture
 
@@ -89,6 +90,48 @@ Every answer is recorded per fact key (`m:3x7`, `a:5+8`, …) in `state.stats` v
 ### Visual theme
 
 The current look is a **Halloween night theme** (the child's request): a dark navy sky with a moon and a pumpkin glow, floating 🎃👻🦇 decorations (`createFloatingDecorations()` item list), and **shimmering rainbow digits** — problem digits (`.problem-num`, `.crossing-num`), the numpad digit buttons and the answer display (`.rainbow-digit`) share one `rainbowFlow` animation: a 200%-tall gradient holding two full rainbows, shifted by exactly one height so the colours flow top-to-bottom seamlessly (off under `prefers-reduced-motion`). On buttons the rainbow sits on an **inner** `<span class="rainbow-digit">`, because `background-clip: text` clips every background layer — applied to the button itself it would erase the button's white fill; for the same reason `#numpad-display` is now the inner span, and the box styling stays on the outer `.numpad-display` div (JS only ever sets its `textContent`). The four coin **balance counters** show a drawn Robux-style icon (`.robux-icon`, an inline SVG data URI) instead of 💰; prices, reward badges and toasts deliberately keep 💰 so a shop button never reads as “pay 8000 Robux for 500 Robux”. The whole theme lives in one block at the end of `style.css` (overriding `--bg-gradient` and the colours of text that sits directly on the page background), so it can be swapped for another season without touching the rest. Because the background is dark, **any new text placed directly on the page background (not inside a white card) must use `var(--text-on-bg)`** — the pastel `--text`/`--text-light` vars are for text on white/pastel cards and are unreadable on the night sky.
+
+## Subjects and the two-session setup (math + English)
+
+The app is becoming multi-subject. **Math is developed in one Claude session, English in another**, both pushing to the same repo and the same `main`. This section is the contract between them; both sessions read it.
+
+### How subjects plug in
+
+- `SUBJECTS` (main.js) is a registry. Math is built in; other subjects call `registerSubject({ id, icon, label, desc, start(), onLogin(userDoc)?, onLogout()? })` from their own script when it loads (`english/english.js` is included right after `main.js`).
+- After login `handleLogin()` calls every subject's `onLogin(userDoc)` with the whole Firestore document (a subject reads its own field, e.g. `userDoc.english`), then `enterApp()`: with more than one subject it shows the picker screen `screen-subject` («Що вчимо?»), otherwise it goes straight to the math menu — **so while `english.js` registers nothing, the child sees no change**. The math menu shows «🔀 Інший предмет» (`#btn-switch-subject`) only when there are several subjects; `showSubjectPicker()` is the way back from any subject.
+- Subject hooks run inside `callSubjectHook()` / a try-catch in the picker: an exception in another module is logged and never breaks login or math.
+
+### The contract — rules for any non-math module
+
+1. **Coins.** The balance is shared (`state.coins`, one Robux pool). A module changes it **only** via `awardCoins(amount, source)` — an integer `0..CONFIG.maxAwardPerCall`, anything else is rejected. Never assign `state.coins` and never write the `coins` field to Firestore: the math session persists it (`saveGame()`), and a second writer would overwrite it with a stale value. Spending stays in the shop.
+2. **Rates.** English reward rates live in `CONFIG.english` (`rewardTyped`, `rewardChoice`, `rewardMastered`, `firstTryOnly`) in main.js and are **owned by the math session**, which owns the whole economy and its anti-abuse rules. The module reads them; to change a rate, the English session asks the user to relay the request to the math session.
+3. **Saving.** Each subject keeps its data in **its own top-level field** of `users/{pin}` (`english`) and writes only that field: `db.collection('users').doc(state.userId).set({ english: … }, { mergeFields: ['english'] })`. `saveToFirebase()` writes math's fields with `mergeFields` too — a plain `set()` replaces the whole document and would wipe the other subject on every save. Keep the field compact (a Firestore document is capped at 1 MiB and math already stores history + stats there).
+4. **History.** A finished session goes through `recordSubjectSession(mode, label, correct, total, coins, extra)` with a mode registered by `registerMode(id, { icon, label, color })`. Ids must carry the subject prefix (`en-words`, `en-letters`…) — `registerMode` refuses math ids and unprefixed ones. That's how English shows up in the calendar, achievements and the parent report.
+5. **Hands off math state.** Don't use math's resume slot (`state.session` / `activeSession`), the daily-task chain (`state.daily`, `completeDailyTask`), `MODE_META` entries of math, or `CONFIG` values other than `CONFIG.english`. If English needs resume or daily goals, it keeps them inside its own field.
+6. **Files.** English creates its screens from `english.js` (append `<div class="screen">` elements to `<body>`, show them with `showScreen()`), styles them in `english.css`, and touches `index.html` only to bump its own `?v=` numbers. Text directly on the night background uses `var(--text-on-bg)`.
+
+### Ownership
+
+| What | Owner |
+|---|---|
+| `main.js`, `style.css`, `index.html` (except the `english/*?v=` numbers), `firebase-config.js`, this `CLAUDE.md` | math session |
+| `english/**` (incl. `english/CLAUDE.md`) | English session |
+| Economy: `CONFIG` (incl. `CONFIG.english`), `awardCoins`, shop, Robux prices, anti-abuse rules | math session |
+
+A session that needs something outside its area (a new hook, a rate change, a fix in the other's code) writes the request down for the user to relay — it does not edit the other session's files.
+
+### Git with two sessions on one `main`
+
+Each session works on its own branch and ships by fast-forwarding `main`:
+
+```bash
+git fetch origin main && git rebase origin/main   # pick up the other session's work
+# re-test, then:
+git push origin HEAD:main                         # rejected? the other session shipped first — fetch, rebase, re-test, push again
+git push --force-with-lease origin HEAD           # update your own (rebased) feature branch
+```
+
+Never force-push `main`, never rewrite commits that are already on `main`.
 
 ## Conventions
 
