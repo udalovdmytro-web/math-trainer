@@ -52,7 +52,7 @@ const CONFIG = {
     dailyGoal: 100,          // legacy (v1 goal of 100 answers); kept to migrate old saves' streaks
     dailyBonus: 50,          // coins for the FIRST completed daily task each day (also grows the streak)
     dailyRepeatBonus: 15,    // coins for every following completed daily task the same day
-    multRewardFull: 2,       // множення «Вся таблиця» — монет за відповідь
+    multRewardFull: 1,       // множення «Вся таблиця» — монет за відповідь
     multRewardOther: 1,      // окремі таблиці 3–9 і «Свій мікс»; за множення на 2 — 0 завжди
     easyDailyAnswers: 20,    // скільки відповідей на «легкому» контенті (2/5) оплачується за день ≈ одна сесія
     examMaxErrors: 2,        // exam is passed with fewer than 3 mistakes (i.e. ≤ this many)
@@ -88,12 +88,12 @@ const CONFIG = {
 // Per-mode metadata: label (UI/history), calendar color, and coin reward per correct answer.
 // crossingReward applies to the step-by-step "через десяток" variant of add/sub.
 const MODE_META = {
-    addition:       { icon: '➕',  label: 'Додавання',   color: 'var(--pink-light)', reward: 2, crossingReward: 2 },
-    subtraction:    { icon: '➖',  label: 'Віднімання',  color: 'var(--lavender)',   reward: 2, crossingReward: 2 },
-    multiplication: { icon: '✖️', label: 'Множення',    color: 'var(--mint)',       reward: 2 },
-    division:       { icon: '➗',  label: 'Ділення',     color: 'var(--sky)',        reward: 2 },
-    plusminus:      { icon: '➕➖', label: 'Плюс-мінус',  color: 'var(--peach)',      reward: 2 },
-    logic:          { icon: '🧩', label: 'Логіка',      color: 'var(--peach)',      reward: 2 },
+    addition:       { icon: '➕',  label: 'Додавання',   color: 'var(--pink-light)', reward: 1, crossingReward: 1 },
+    subtraction:    { icon: '➖',  label: 'Віднімання',  color: 'var(--lavender)',   reward: 1, crossingReward: 1 },
+    multiplication: { icon: '✖️', label: 'Множення',    color: 'var(--mint)',       reward: 1 },
+    division:       { icon: '➗',  label: 'Ділення',     color: 'var(--sky)',        reward: 1 },
+    plusminus:      { icon: '➕➖', label: 'Плюс-мінус',  color: 'var(--peach)',      reward: 1 },
+    logic:          { icon: '🧩', label: 'Логіка',      color: 'var(--peach)',      reward: 1 },
     blitz:          { icon: '⏱️', label: 'Бліц-Турнір', color: 'var(--yellow)',     reward: 1 },
     exam:           { icon: '📝', label: 'Екзамен',     color: 'var(--gold)' }, // reward handled at completion
     goatexam:       { icon: '🌷', label: 'Тренування на Весну', color: '#CBE8A8' } // бонус за проходження в кінці, як в екзамені
@@ -252,7 +252,7 @@ function updateEconomyUI() {
     // Game
     const gameCoins = document.getElementById('game-coins');
     const gameCombo = document.getElementById('game-combo');
-    if (gameCoins) gameCoins.textContent = state.coins;
+    if (gameCoins) gameCoins.textContent = '+' + (state.sessionCoins || 0); // за цей рівень, зарахується в кінці
     if (gameCombo) gameCombo.textContent = state.combo;
     
     // Shop
@@ -506,6 +506,12 @@ function showScreen(screenId) {
 }
 
 function goToMenu() {
+    // Бліц не відновлюється: вийшла до кінця хвилини — накопичені монети не зараховуються.
+    // Інші режими зберігають монети в знімку сесії й чекають «Продовжити».
+    if (state.mode === 'blitz' && blitzTimer && (state.sessionCoins || 0) > 0) {
+        showNotification('Бліц не завершено', `${state.sessionCoins} 💰 не зараховано — монети дають лише за повну хвилину`, '⏱️');
+        state.sessionCoins = 0;
+    }
     state.mode = null;
     state.score = 0;
     state.round = 0;
@@ -559,6 +565,7 @@ function persistSession() {
         examQueue: isExamMode(state.mode) ? state.examQueue : null,
         examResults: isExamMode(state.mode) ? state.examResults : null,
         sessionCoins: state.sessionCoins || 0,
+        coinsPending: true,   // монети знімка ще НЕ на рахунку (зараховуються в кінці рівня)
         sessionLog: state.sessionLog || []
     };
     saveGame();
@@ -586,8 +593,11 @@ function isResumableModeName(mode) {
 function resetActiveSession() {
     if (!state.session) return;
     const label = modeLabel(state.session.mode);
-    if (!confirm(`Скинути незакінчену гру «${label}»? Її прогрес згорить.`)) return;
+    const pending = state.session.sessionCoins || 0;
+    if (!confirm(`Скинути незакінчену гру «${label}»? Її прогрес згорить` +
+                 (pending ? ` разом із ${pending} 💰 за цей рівень.` : '.'))) return;
     state.session = null;
+    state.sessionCoins = 0;
     state.examQueue = [];
     state.examResults = [];
     state.sessionLog = [];
@@ -617,7 +627,9 @@ function resumeSession() {
     state.score = s.score;
     state.sessionCorrect = s.sessionCorrect;
     state.sessionLog = s.sessionLog || [];
-    state.sessionCoins = s.sessionCoins || 0;
+    // Знімок зі старих правил (без coinsPending): ці монети вже зараховано одразу при відповідях —
+    // не зараховуємо їх удруге в кінці рівня.
+    state.sessionCoins = s.coinsPending ? (s.sessionCoins || 0) : 0;
     if (isExamMode(s.mode)) {
         state.examQueue = s.examQueue || [];
         state.examResults = s.examResults || [];
@@ -655,7 +667,7 @@ function showSubMenu(mode) {
             icon: '➕',
             title: 'Додавання',
             options: [
-                { emoji: '🌟', label: 'До 20', desc: 'Додавання в межах 20', maxNum: 20, reward: 1 },
+                { emoji: '🌟', label: 'Двозначні', desc: 'До 100, без переходу через десяток', maxNum: 99, reward: 1 },
                 // Тимчасово прихований — логіка збережена, повернути прибравши коментар:
                 // { emoji: '🔟', label: 'Через десяток', desc: 'Розкладаємо через 10', crossing: true, reward: 2 },
             ]
@@ -664,7 +676,7 @@ function showSubMenu(mode) {
             icon: '➖',
             title: 'Віднімання',
             options: [
-                { emoji: '🌟', label: 'До 20', desc: 'Віднімання в межах 20', maxNum: 20, reward: 2 },
+                { emoji: '🌟', label: 'Двозначні', desc: 'До 100, без переходу через десяток', maxNum: 99, reward: 1 },
                 // Тимчасово прихований — логіка збережена, повернути прибравши коментар:
                 // { emoji: '🔟', label: 'Через десяток', desc: 'Розкладаємо через 10', crossing: true, reward: 3 },
             ]
@@ -966,6 +978,37 @@ function multAnswerReward() {
     return isFullTable() ? CONFIG.multRewardFull : CONFIG.multRewardOther;
 }
 
+// Двозначні + і − БЕЗ переходу через десяток (Додавання, Віднімання, Плюс-мінус):
+//   додавання — 25 + 43, 41 + 37: одиниці в сумі ≤ 9, десятки в сумі ≤ 9 (відповідь до 99);
+//   віднімання — 87 − 62, 66 − 53: одиниці зменшуваного ≥ одиниць від'ємника, відповідь ≥ 10.
+// Круглі числа (30, 40…) не беремо — 30 + 40 занадто легко.
+function buildTwoDigitPool(mode) {
+    const pool = [];
+    for (let a = 11; a <= 99; a++) {
+        if (a % 10 === 0) continue;
+        for (let b = 11; b <= 99; b++) {
+            if (b % 10 === 0) continue;
+            const au = a % 10, bu = b % 10, at = Math.floor(a / 10), bt = Math.floor(b / 10);
+            if (mode === 'addition') {
+                if (au + bu <= 9 && at + bt <= 9) {
+                    pool.push({ a, b, answer: a + b, factKey: `a:${a}+${b}` });
+                }
+            } else if (au >= bu && at > bt) {
+                pool.push({ a, b, answer: a - b, factKey: `s:${a}-${b}` });
+            }
+        }
+    }
+    return pool;
+}
+
+// Пояснення для двозначного прикладу: десятки окремо, одиниці окремо.
+function columnHint(a, b, op, answer) {
+    const at = a - a % 10, bt = b - b % 10, au = a % 10, bu = b % 10;
+    const tens = op === '+' ? at + bt : at - bt;
+    const units = op === '+' ? au + bu : au - bu;
+    return `💡 ${a} ${op} ${b}: десятки ${at} ${op} ${bt} = ${tens}, одиниці ${au} ${op} ${bu} = ${units} → ${tens} + ${units} = ${answer}`;
+}
+
 // Build the candidate pool for the current multiplication/division difficulty.
 function buildFactPool(mode) {
     const pool = [];
@@ -1010,14 +1053,14 @@ function generateProblem() {
 
         case 'addition': {
             // Crossing-the-ten only, weighted toward weak/slow facts
-            const pick = pickWeightedFact(buildAddSubPool('addition', true));
+            const pick = pickWeightedFact(buildTwoDigitPool('addition'));
             a = pick.a; b = pick.b; answer = pick.answer;
             opSymbol = '+';
             break;
         }
 
         case 'subtraction': {
-            const pick = pickWeightedFact(buildAddSubPool('subtraction', true));
+            const pick = pickWeightedFact(buildTwoDigitPool('subtraction'));
             a = pick.a; b = pick.b; answer = pick.answer;
             opSymbol = '−';
             break;
@@ -1026,7 +1069,7 @@ function generateProblem() {
         case 'plusminus': {
             // Mixed drill: alternate + and − (guarantees subtraction), each weighted by weakness
             const op = (state.round % 2 === 1) ? 'addition' : 'subtraction';
-            const pick = pickWeightedFact(buildAddSubPool(op, true)); // crossing-the-ten only
+            const pick = pickWeightedFact(buildTwoDigitPool(op)); // двозначні, без переходу через десяток
             a = pick.a; b = pick.b; answer = pick.answer;
             opSymbol = op === 'addition' ? '+' : '−';
             break;
@@ -1357,6 +1400,7 @@ function startGoatExam() {
 }
 
 function nextProblem() {
+    updateEconomyUI(); // фішка «+N за рівень» — і після «Продовжити», і на старті нового рівня
     state.round++;
     state.answered = false;
     state.numpadValue = '';
@@ -1756,7 +1800,8 @@ function awardCorrect(timeTaken) {
         }
     }
 
-    state.coins += earned;
+    // Монети НЕ йдуть на рахунок одразу: копляться в state.sessionCoins (і в знімку сесії)
+    // й зараховуються лише в showCompletion(). Кинув рівень на складному прикладі — монет немає.
     state.sessionCoins = (state.sessionCoins || 0) + earned;
 
     // Лічильник правильних за день (сама нагорода за «завдання дня» — в completeDailyTask,
@@ -1882,7 +1927,9 @@ function handleResult(correct, userAnswer, btnElement) {
             const p = state.currentProblem;
             const h = state.mode === 'goatexam'
                 ? springHint(p.a, p.b, p.opSymbol, p.answer)
-                : makeTenHint(p.a, p.b, p.opSymbol, p.answer);
+                : (p.a >= 10 && p.b >= 10
+                    ? columnHint(p.a, p.b, p.opSymbol, p.answer)
+                    : makeTenHint(p.a, p.b, p.opSymbol, p.answer));
             if (h) {
                 document.getElementById('hint-text').textContent = h;
                 document.getElementById('hint').classList.add('show');
@@ -1937,9 +1984,17 @@ function showCompletion() {
     const examAvgMs = isExam && state.examResults.length
         ? Math.round(state.examResults.reduce((s, r) => s + (r.timeMs || 0), 0) / state.examResults.length) : 0;
 
+    // Рівень пройдено до кінця — тільки тепер зараховуємо монети, накопичені за відповіді
+    const answerCoins = state.sessionCoins || 0;
+    state.coins += answerCoins;
+    state.sessionCoins = 0;
+    if (answerCoins > 0) {
+        setTimeout(() => showNotification(`+${answerCoins} 💰 за рівень`, 'Монети зараховано — ти пройшла рівень до кінця! 🎉', '✅'), 300);
+    }
+
     // Save to history (exams also store mistakes + pass flag + avg time for later analysis)
     // Фактично нараховані монети за сесію (+ бонус за складений екзамен) — для звіту батькам
-    const earnedCoins = (state.sessionCoins || 0) +
+    const earnedCoins = answerCoins +
         (isExam && examPassed ? (isGoat ? CONFIG.goatExamPassBonus : CONFIG.examPassBonus) : 0);
     saveSession(state.mode, state.difficultyLabel || modeLabel(state.mode), correct, total,
         isExam ? { mistakes: examMistakes, passed: examPassed, avgMs: examAvgMs, coins: earnedCoins }
