@@ -12,7 +12,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="style.css?v=43">
+    <link rel="stylesheet" href="style.css?v=44">
     <!-- 🇬🇧 Модуль англійської — свій номер версії, його оновлює лише англійська сесія -->
     <link rel="stylesheet" href="english/english.css?v=1">
     
@@ -116,6 +116,12 @@
         </div>
 
         <div class="menu-container">
+            <div class="mode-card mode-tens" onclick="showSubMenu('tens')" id="btn-tens">
+                <span class="mode-new">НОВЕ</span>
+                <div class="mode-icon">🔟</div>
+                <div class="mode-label">Через десяток</div>
+                <div class="mode-desc">Урок з картинками і тренування: 8 + 5, 13 − 7, 27 + 5</div>
+            </div>
             <div class="mode-card mode-addition" onclick="showSubMenu('addition')" id="btn-addition">
                 <div class="mode-icon">➕</div>
                 <div class="mode-label">Додавання</div>
@@ -277,6 +283,7 @@
 
         <!-- Make-ten hint shown on a wrong +/- answer (stays until closed) -->
         <div class="hint" id="hint">
+            <div class="hint-visual" id="hint-visual" style="display:none;"></div>
             <span class="hint-text" id="hint-text"></span>
             <button class="hint-close" onclick="dismissHint()" aria-label="Закрити">×</button>
         </div>
@@ -522,6 +529,24 @@
         </div>
     </div>
 
+    <!-- ===== 📖 УРОК «ЧЕРЕЗ ДЕСЯТОК» (слайди з картинками; наповнює renderLesson()) ===== -->
+    <div id="screen-tens-lesson" class="screen">
+        <button class="back-btn" onclick="showSubMenu('tens')" id="btn-back-lesson">
+            ← Назад
+        </button>
+        <div class="shop-header">
+            <h2 class="shop-title">📖 Як рахувати через десяток</h2>
+        </div>
+        <div class="lesson-chapters" id="lesson-chapters"></div>
+        <div class="lesson-card" id="lesson-card"></div>
+        <div class="lesson-nav">
+            <button class="lesson-nav-btn" id="lesson-prev" onclick="lessonGo(lessonIdx - 1)">← Назад</button>
+            <span class="lesson-progress" id="lesson-progress"></span>
+            <button class="lesson-nav-btn primary" id="lesson-next" onclick="lessonGo(lessonIdx + 1)">Далі →</button>
+            <button class="lesson-nav-btn primary" id="lesson-train" onclick="startTensLevel('steps')" style="display:none;">🪜 Тренуватися!</button>
+        </div>
+    </div>
+
     <!-- ===== CUSTOM MIX MODAL ===== -->
     <div id="mix-modal" class="mix-modal" style="display:none;">
         <div class="mix-modal-content">
@@ -535,8 +560,8 @@
         </div>
     </div>
 
-    <script src="firebase-config.js?v=43"></script>
-    <script src="main.js?v=43"></script>
+    <script src="firebase-config.js?v=44"></script>
+    <script src="main.js?v=44"></script>
     <!-- 🇬🇧 Модуль англійської (реєструється через registerSubject) — свій номер версії -->
     <script src="english/english.js?v=1"></script>
 </body>

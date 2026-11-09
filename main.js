@@ -27,6 +27,8 @@ const state = {
     crossingStep: 0,
     crossingData: null,
     crossingInputValue: '',
+    crossingMiss: false, // у поточному прикладі «Крок за кроком» уже була помилка
+    tensLevel: null,     // «Через десяток»: 'bonds' | 'steps' | 'self' | 'big'
     // Calendar
     calendarYear: new Date().getFullYear(),
     calendarMonth: new Date().getMonth(),
@@ -60,7 +62,9 @@ const CONFIG = {
     goatExamMax: 30,         // goat exam: +/− within this bound (crossing-ten only)
     goatOpMin: 3,            // «Тренування на Весну»: скільки додаємо / віднімаємо — від goatOpMin
     goatOpMax: 19,           //   до goatOpMax (25−8, 8+15, 24−13), завжди з переходом через десяток
-    goatExamPassBonus: 100,  // coins for passing the goat exam (the real prize is the Goat Simulator DLC)
+    goatExamPassBonus: 100,
+    tensStepsRounds: 10,     // «Через десяток → Крок за кроком»: прикладів у рівні (кожен — 3 відповіді)
+    bondsDailyAnswers: 20,   // «Друзі числа 10» — легкий рівень: оплачується стільки відповідей на день  // coins for passing the goat exam (the real prize is the Goat Simulator DLC)
     // Ставки модуля англійської (english/english.js). Їх змінює лише математична сесія —
     // модуль читає ці числа й нараховує монети тільки через awardCoins().
     english: {
@@ -96,7 +100,8 @@ const MODE_META = {
     logic:          { icon: '🧩', label: 'Логіка',      color: 'var(--peach)',      reward: 1 },
     blitz:          { icon: '⏱️', label: 'Бліц-Турнір', color: 'var(--yellow)',     reward: 1 },
     exam:           { icon: '📝', label: 'Екзамен',     color: 'var(--gold)' }, // reward handled at completion
-    goatexam:       { icon: '🌷', label: 'Тренування на Весну', color: '#CBE8A8' } // бонус за проходження в кінці, як в екзамені
+    goatexam:       { icon: '🌷', label: 'Тренування на Весну', color: '#CBE8A8' }, // бонус за проходження в кінці, як в екзамені
+    tens:           { icon: '🔟', label: 'Через десяток', color: '#FFD8A8', reward: 1, crossingReward: 1 }
 };
 
 // Режими з готовою чергою на 100 прикладів і бонусом за проходження (без монет за відповідь).
@@ -269,7 +274,15 @@ function updateEconomyUI() {
 }
 
 // Режими, які по черзі стають «завданням дня» (бліц та екзамен — ні)
-const DAILY_TASK_MODES = ['addition', 'multiplication', 'subtraction', 'logic', 'division', 'plusminus'];
+const DAILY_TASK_MODES = ['addition', 'multiplication', 'subtraction', 'logic', 'division', 'plusminus', 'tens'];
+
+// Чи зараховується цей рівень у завдання дня. «Через десяток» — лише «Сам» і «Великі числа»:
+// «Друзі числа 10» надто легкі, а «Крок за кроком» — це підказка, а не самостійний рахунок.
+function isDailyTaskSession() {
+    if (state.mode !== dailyTaskMode()) return false;
+    if (state.mode === 'tens') return state.tensLevel === 'self' || state.tensLevel === 'big';
+    return true;
+}
 
 // Який режим потрібен для поточного завдання дня. Порядок стабільний упродовж дня,
 // але щодня починається з іншого режиму (зсув рахуємо з дати) — щоб не приїдалось.
@@ -291,7 +304,8 @@ function updateDailyUI() {
     if (dailyTitle) dailyTitle.textContent = `🎯 Завдання дня №${done + 1}`;
     if (dailyDesc) {
         const meta = MODE_META[dailyTaskMode()] || {};
-        dailyDesc.innerHTML = `Пройди рівень <b>${meta.icon || ''} ${meta.label || ''}</b> без помилок!`;
+        const extra = dailyTaskMode() === 'tens' ? ' («Сам» або «Великі числа»)' : '';
+        dailyDesc.innerHTML = `Пройди рівень <b>${meta.icon || ''} ${meta.label || ''}</b>${extra} без помилок!`;
     }
     if (dailyStreak) dailyStreak.textContent = state.daily.streak;
     if (dailyMedals) {
@@ -537,12 +551,12 @@ function goToMenu() {
 // A started 20-question game or exam is saved after every question and must be
 // finished — pressing "back" no longer restarts it; the child resumes where they left off.
 function isResumableMode() {
-    return ['addition', 'subtraction', 'multiplication', 'division', 'logic', 'exam', 'goatexam', 'plusminus'].includes(state.mode);
+    return ['addition', 'subtraction', 'multiplication', 'division', 'logic', 'exam', 'goatexam', 'plusminus', 'tens'].includes(state.mode);
 }
 
 // Modes that get a per-question results table at the end (example / right-wrong / seconds)
 function hasResultsTable(mode) {
-    return ['addition', 'subtraction', 'plusminus'].includes(mode);
+    return ['addition', 'subtraction', 'plusminus', 'tens'].includes(mode);
 }
 
 function persistSession() {
@@ -562,6 +576,7 @@ function persistSession() {
         maxNum: state.maxNum != null ? state.maxNum : null,
         crossingTens: !!state.crossingTens,
         logicMode: state.logicMode || null,
+        tensLevel: state.tensLevel || null,
         examQueue: isExamMode(state.mode) ? state.examQueue : null,
         examResults: isExamMode(state.mode) ? state.examResults : null,
         sessionCoins: state.sessionCoins || 0,
@@ -585,7 +600,7 @@ function updateResumeBanner() {
 }
 
 function isResumableModeName(mode) {
-    return ['addition', 'subtraction', 'multiplication', 'division', 'logic', 'exam', 'goatexam', 'plusminus'].includes(mode);
+    return ['addition', 'subtraction', 'multiplication', 'division', 'logic', 'exam', 'goatexam', 'plusminus', 'tens'].includes(mode);
 }
 
 // Скидання незакінченої сесії — кнопка ✖ на банері «Продовжити» в меню.
@@ -623,6 +638,7 @@ function resumeSession() {
     state.inputMode = 'numpad';
     state.minA = s.minA; state.maxA = s.maxA; state.factors = s.factors;
     state.maxNum = s.maxNum; state.crossingTens = s.crossingTens; state.logicMode = s.logicMode;
+    state.tensLevel = s.tensLevel || null;
     state.totalRounds = s.totalRounds;
     state.score = s.score;
     state.sessionCorrect = s.sessionCorrect;
@@ -713,6 +729,17 @@ function showSubMenu(mode) {
                 { emoji: '🐣', label: 'На 2', desc: 'Ділення на 2', minA: 2, maxA: 2, reward: 2 },
             ]
         },
+        tens: {
+            icon: '🔟',
+            title: 'Через десяток',
+            options: [
+                { emoji: '📖', label: 'Урок', desc: 'Як рахувати через 10 — з картинками', lesson: true },
+                { emoji: '🤝', label: 'Друзі числа 10', desc: '10 = 7 + ?   6 = 4 + ?', level: 'bonds' },
+                { emoji: '🪜', label: 'Крок за кроком', desc: '8 + 5: до 10, розклад, відповідь', level: 'steps', crossing: true },
+                { emoji: '✍️', label: 'Сам', desc: '8 + 5, 13 − 7 — до 20', level: 'self' },
+                { emoji: '🚀', label: 'Великі числа', desc: '27 + 5, 34 − 8 — до 100', level: 'big' },
+            ]
+        },
         logic: {
             icon: '🧩',
             title: 'Логіка',
@@ -739,21 +766,23 @@ function showSubMenu(mode) {
             if (!opt.custom && opt.minA === 2 && opt.maxA === 9) return CONFIG.multRewardFull;
             return CONFIG.multRewardOther;
         }
+        if (opt.lesson) return 0;
         return (MODE_META[mode] && MODE_META[mode].reward) || 1;
     };
     config.options.forEach((opt, i) => {
         const r = optionReward(opt);
         const card = document.createElement('div');
-        card.className = 'difficulty-card slide-up';
+        card.className = 'difficulty-card slide-up' + (opt.lesson ? ' wide' : '');
         card.style.animationDelay = `${i * 0.05}s`;
         card.innerHTML = `
             <span class="diff-emoji">${opt.emoji}</span>
             <div class="diff-label">${opt.label}</div>
             <div class="diff-desc">${opt.desc}</div>
-            <div class="diff-reward">${r ? '+' + r + ' 💰' : 'без монет'}</div>
+            <div class="diff-reward">${opt.lesson ? 'Почни звідси 👈' : (r ? '+' + r + ' 💰' : 'без монет')}</div>
         `;
         card.onclick = () => {
             if (opt.custom) { openMixModal(mode); return; } // let the child pick the numbers
+            if (opt.lesson) { openTensLesson(0); return; }   // урок — не гра, без монет
             state.difficultyLabel = opt.label;
             state.crossingTens = opt.crossing || false;
             if (mode === 'multiplication' || mode === 'division') {
@@ -762,6 +791,9 @@ function showSubMenu(mode) {
                 state.maxA = opt.maxA || 4;
             } else if (mode === 'logic') {
                 state.logicMode = opt.type;
+            } else if (mode === 'tens') {
+                state.tensLevel = opt.level;
+                state.maxNum = 20;
             } else {
                 state.maxNum = opt.maxNum || 20;
             }
@@ -1041,6 +1073,12 @@ function generateProblem() {
         return { a, b, answer, opSymbol, factKey: pick.factKey };
     }
 
+    if (state.mode === 'tens') {
+        const pick = generateTensProblem();
+        state.lastFactKey = pick.factKey;
+        return pick;
+    }
+
     switch (state.mode) {
         case 'exam':
         case 'goatexam': {
@@ -1208,7 +1246,8 @@ function shuffleArray(arr) {
 // ===== GAME FLOW =====
 function startGame() {
     state.sessionCoins = 0;
-    state.totalRounds = CONFIG.totalRounds; // reset (exam may have set it to 100)
+    state.totalRounds = (state.mode === 'tens' && state.tensLevel === 'steps')
+        ? CONFIG.tensStepsRounds : CONFIG.totalRounds; // reset (exam may have set it to 100)
     state.score = 0;
     state.round = 0;
     state.sessionCorrect = 0;
@@ -1419,6 +1458,8 @@ function nextProblem() {
     document.getElementById('feedback').className = 'feedback';
     const hintEl = document.getElementById('hint');
     if (hintEl) { hintEl.classList.remove('show'); document.getElementById('hint-text').textContent = ''; }
+    const hintVis = document.getElementById('hint-visual');
+    if (hintVis) { hintVis.innerHTML = ''; hintVis.style.display = 'none'; }
 
     const problemContainer = document.getElementById('problem-container');
     problemContainer.classList.remove('shake');
@@ -1457,6 +1498,7 @@ function nextProblem() {
         if (eqSign) eqSign.style.display = 'inline';
         if (numA) numA.style.marginRight = '0';
     }
+    if (eqSign) eqSign.textContent = state.currentProblem.eqSymbol || '=';
 
     answerDisplay.textContent = '?';
     answerDisplay.className = 'problem-answer';
@@ -1525,139 +1567,242 @@ function enableNumpad(enabled) {
     });
 }
 
-// ===== CROSSING TENS MODE =====
-function generateCrossingProblem() {
-    let a, b;
-    if (state.mode === 'addition') {
-        // a + b crosses 10: both 3-9, sum > 10
-        do {
-            a = randomInt(3, 9);
-            b = randomInt(3, 9);
-        } while (a + b <= 10 || a + b > 18);
+// ===== 🔟 ЧЕРЕЗ ДЕСЯТОК: рівні, картинки, підказки, «Крок за кроком» =====
+// Метод — як у школі: 1) доповни до 10 (до круглого числа); 2) розклади друге число;
+// 3) додай / відніми решту.   8 + 5 = 8 + 2 + 3 = 13;   13 − 5 = 13 − 3 − 2 = 8;
+// 27 + 5 = 27 + 3 + 2 = 32;   34 − 8 = 34 − 4 − 4 = 26.
+// Ключі статистики ті самі, що й в інших режимах (a:8+5, s:13-5), тож бліц, «Тренування
+// на Весну» і цей режим навчаються на одних даних. «Друзі числа 10» — ключі k:10=7, k:6=4.
 
-        const toTen = 10 - a;
-        const remainder = b - toTen;
-        const answer = a + b;
-
-        return {
-            a, b, answer, opSymbol: '+', crossOp: '+',
-            answers: [10, remainder, answer],
-            factKey: `a:${a}+${b}`
-        };
-    } else {
-        // subtraction: a > 10, crossing below 10
-        a = randomInt(11, 17);
-        const minB = Math.max(3, a - 9);
-        const maxB = Math.min(9, a - 3);
-        b = randomInt(minB, maxB);
-
-        const toTen = a - 10;
-        const remainder = b - toTen;
-        const answer = a - b;
-
-        return {
-            a, b, answer, opSymbol: '−', crossOp: '−',
-            answers: [10, remainder, answer],
-            factKey: `s:${a}-${b}`
-        };
+// Розбір прикладу через круглий десяток (b — однозначне, приклад справді переходить десяток):
+// first — скільки до круглого числа, round — це кругле число, rest — решта від b.
+function tensSplit(a, b, op) {
+    const units = a % 10;
+    if (op === '+') {
+        const first = 10 - units, round = a + first, rest = b - first;
+        return { first, round, rest, answer: round + rest };
     }
+    const first = units, round = a - units, rest = b - units;
+    return { first, round, rest, answer: round - rest };
+}
+
+// «Сам» і «Крок за кроком»: до 20 — 8 + 5, 13 − 5 (той самий набір, що й у бліці), + і − разом.
+// Адаптивність сама підсуне слабке (зараз це віднімання: 13 − 9, 12 − 8, 11 − 7).
+function tensSmallPool(onlyOp) {
+    const saved = state.maxNum;
+    state.maxNum = 20;
+    let pool = buildAddSubPool('addition', true).map(f => ({ ...f, opSymbol: '+' }))
+        .concat(buildAddSubPool('subtraction', true).map(f => ({ ...f, opSymbol: '−' })));
+    state.maxNum = saved;
+    if (onlyOp) pool = pool.filter(f => f.opSymbol === onlyOp);
+    return pool;
+}
+
+// «Великі числа»: 27 + 5, 34 − 8 — двозначне ± однозначне з переходом через круглий десяток
+// (одиниці в сумі > 10; у відніманні одиниць зменшуваного менше, ніж віднімаємо). До 100.
+function tensBigPool() {
+    const pool = [];
+    for (let a = 21; a <= 98; a++) {
+        const u = a % 10;
+        if (u === 0) continue;
+        for (let b = 2; b <= 9; b++) {
+            if (u + b > 10 && a + b <= 99) pool.push({ a, b, answer: a + b, opSymbol: '+', factKey: `a:${a}+${b}` });
+            if (u < b) pool.push({ a, b, answer: a - b, opSymbol: '−', factKey: `s:${a}-${b}` });
+        }
+    }
+    return pool;
+}
+
+// «Друзі числа 10» (10 = 7 + ?) і розклад числа (6 = 4 + ?) — без цього через десяток не порахуєш.
+// Показуємо як «10 = 7 + ?»: знак «=» стоїть на місці дії, «+» — на місці «=» (eqSymbol).
+function tensBondsPool(kind) {
+    const pool = [];
+    const add = (n, k) => pool.push({ a: n, b: k, answer: n - k, opSymbol: '=', eqSymbol: '+',
+        label: `${n} = ${k} + ${n - k}`, factKey: `k:${n}=${k}` });
+    if (kind === 'ten') {
+        for (let k = 1; k <= 9; k++) add(10, k);
+    } else {
+        for (let n = 3; n <= 9; n++) for (let k = 1; k < n; k++) add(n, k);
+    }
+    return pool;
+}
+
+function generateTensProblem() {
+    switch (state.tensLevel) {
+        case 'bonds': return { ...pickWeightedFact(tensBondsPool(state.round % 2 === 1 ? 'ten' : 'split')) };
+        case 'big':   return { ...pickWeightedFact(tensBigPool()) };
+        default:      return { ...pickWeightedFact(tensSmallPool()) };
+    }
+}
+
+// Запуск рівня «Через десяток» не з підменю (кнопка в кінці уроку)
+const TENS_LEVEL_LABELS = { bonds: 'Друзі числа 10', steps: 'Крок за кроком', self: 'Сам', big: 'Великі числа' };
+function startTensLevel(level) {
+    if (blockedBySession()) return;
+    state.mode = 'tens';
+    state.tensLevel = level;
+    state.crossingTens = level === 'steps';
+    state.factors = null;
+    state.maxNum = 20;
+    state.difficultyLabel = TENS_LEVEL_LABELS[level] || 'Через десяток';
+    document.getElementById('progress-display').style.display = 'block';
+    startGame();
+}
+
+// ----- Картинки: десяткова рамка (2 × 5 клітинок) і «палички» повних десятків -----
+// cells: класи клітинок — 'orig' (було), 'add' (додаємо), 'take' (забираємо, закреслено), '' — порожня
+function tenFrameHTML(cells, caption) {
+    let html = '<div class="tf-group"><div class="tf">';
+    for (let i = 0; i < 10; i++) html += `<span class="tf-cell ${cells[i] || ''}"></span>`;
+    html += '</div>';
+    if (caption !== undefined && caption !== '') html += `<div class="tf-cap">${caption}</div>`;
+    return html + '</div>';
+}
+
+// [['orig', 8], ['add', 2]] → масив із 10 класів клітинок
+function tfCells(spec) {
+    const out = [];
+    spec.forEach(([cls, n]) => { for (let i = 0; i < n; i++) out.push(cls); });
+    while (out.length < 10) out.push('');
+    return out.slice(0, 10);
+}
+
+function tenRodsHTML(count) {
+    if (count <= 0) return '';
+    let rods = '';
+    for (let i = 0; i < count; i++) rods += '<span class="tf-rod"></span>';
+    return `<div class="tf-group"><div class="tf-rods">${rods}</div><div class="tf-cap">${count * 10}</div></div>`;
+}
+
+// Картинка розв'язку по кроках (stage 0 — умова, 1 — після кроку 1, 2 — після кроку 2, 3 — усе).
+//   8 + 5:  [8] [5] → [8 + 2 = повна рамка] [3]
+//   13 − 5: [10] [3] → [10] [3 закреслено] → [10, з них 2 закреслено] [3 закреслено]
+function tensPictureHTML(a, b, op, stage) {
+    const t = tensSplit(a, b, op);
+    const tens = Math.floor(a / 10), u = a % 10;
+    let html = '';
+    if (op === '+') {
+        html += tenRodsHTML(tens);
+        if (stage < 1) {
+            html += tenFrameHTML(tfCells([['orig', u]]), u);
+            html += tenFrameHTML(tfCells([['add', b]]), `+ ${b}`);
+        } else {
+            html += tenFrameHTML(tfCells([['orig', u], ['add', t.first]]), `${u} + ${t.first}`);
+            html += tenFrameHTML(tfCells([['add', t.rest]]), `+ ${t.rest}`);
+        }
+    } else {
+        html += tenRodsHTML(tens - 1);
+        if (stage < 2) html += tenFrameHTML(tfCells([['orig', 10]]), '10');
+        else html += tenFrameHTML(tfCells([['orig', 10 - t.rest], ['take', t.rest]]), `10 − ${t.rest}`);
+        if (stage < 1) html += tenFrameHTML(tfCells([['orig', u]]), u);
+        else html += tenFrameHTML(tfCells([['take', u]]), `− ${u}`);
+    }
+    return html;
+}
+
+// Три кроки прикладу: що спитати, правильна відповідь, підказка дитині
+function tensStepLines(a, b, op) {
+    const t = tensSplit(a, b, op);
+    if (op === '+') return [
+        { pre: `${a} + `, post: ` = ${t.round}`, ans: t.first, q: `${a} + ? = ${t.round}`, tip: `Скільки бракує до ${t.round}?` },
+        { pre: `${b} = ${t.first} + `, post: '', ans: t.rest, q: `${b} = ${t.first} + ?`, tip: `Розклади ${b}: скільки лишилось?` },
+        { pre: `${t.round} + ${t.rest} = `, post: '', ans: t.answer, q: `${t.round} + ${t.rest} = ?`, tip: 'Додай решту' },
+    ];
+    return [
+        { pre: `${a} − `, post: ` = ${t.round}`, ans: t.first, q: `${a} − ? = ${t.round}`, tip: `Скільки забрати, щоб стало ${t.round}?` },
+        { pre: `${b} = ${t.first} + `, post: '', ans: t.rest, q: `${b} = ${t.first} + ?`, tip: 'Скільки ще треба забрати?' },
+        { pre: `${t.round} − ${t.rest} = `, post: '', ans: t.answer, q: `${t.round} − ${t.rest} = ?`, tip: 'Забери решту' },
+    ];
+}
+
+function tensHintText(a, b, op) {
+    const t = tensSplit(a, b, op);
+    if (op === '+') return [
+        `💡 ${a} + ${b} = ${t.answer}`,
+        `1) До ${t.round} бракує ${t.first}: ${a} + ${t.first} = ${t.round}`,
+        `2) ${b} = ${t.first} + ${t.rest}`,
+        `3) ${t.round} + ${t.rest} = ${t.answer}`,
+    ].join('\n');
+    return [
+        `💡 ${a} − ${b} = ${t.answer}`,
+        `1) Спочатку до ${t.round}: ${a} − ${t.first} = ${t.round}`,
+        `2) ${b} = ${t.first} + ${t.rest}`,
+        `3) ${t.round} − ${t.rest} = ${t.answer}`,
+    ].join('\n');
+}
+
+// Помилка в «Через десяток» — пояснення з картинкою; висить, доки дитина не закриє (×)
+function showTensHint(p) {
+    let text, pic;
+    if (p.opSymbol === '=') {
+        text = p.a === 10
+            ? `💡 ${p.b} і ${p.answer} — друзі числа 10:\n${p.b} + ${p.answer} = 10`
+            : `💡 ${p.a} — це ${p.b} і ще ${p.answer}:\n${p.b} + ${p.answer} = ${p.a}`;
+        pic = tenFrameHTML(tfCells([['orig', p.b], ['add', p.answer]]), `${p.b} + ${p.answer}`);
+    } else {
+        text = tensHintText(p.a, p.b, p.opSymbol);
+        pic = tensPictureHTML(p.a, p.b, p.opSymbol, 3);
+    }
+    document.getElementById('hint-text').textContent = text;
+    const vis = document.getElementById('hint-visual');
+    if (vis) { vis.innerHTML = pic; vis.style.display = 'flex'; }
+    document.getElementById('hint').classList.add('show');
+}
+
+// ----- «Крок за кроком» (контейнер crossing-container; раніше — прихований варіант + / −) -----
+function generateCrossingProblem() {
+    const onlyOp = state.mode === 'addition' ? '+' : state.mode === 'subtraction' ? '−' : null;
+    const f = { ...pickWeightedFact(tensSmallPool(onlyOp)) };
+    const lines = tensStepLines(f.a, f.b, f.opSymbol);
+    f.answers = lines.map(l => l.ans);
+    return f;
 }
 
 function startCrossingProblem() {
     const problem = generateCrossingProblem();
     state.crossingData = problem;
     state.crossingStep = 1;
+    state.crossingMiss = false;
     state.crossingInputValue = '';
     state.currentProblem = problem;
+    state.lastFactKey = problem.factKey;
 
-    renderCrossingVisual(problem);
+    renderCrossingVisual();
     renderCrossingSteps();
     document.getElementById('crossing-input-display').textContent = '?';
     document.getElementById('crossing-input-display').className = 'crossing-input-display';
     enableCrossingNumpad(true);
 }
 
-// Ten-frame-style picture of the make-ten decomposition (why 8+7 becomes 10+5)
-function renderCrossingVisual(p) {
+function renderCrossingVisual() {
     const el = document.getElementById('crossing-visual');
-    if (!el) return;
-    el.innerHTML = '';
-
-    function group(specs, label) {
-        const g = document.createElement('div');
-        g.className = 'cross-group';
-        const dots = document.createElement('div');
-        dots.className = 'cross-dots';
-        specs.forEach(([cls, n]) => {
-            for (let i = 0; i < n; i++) {
-                const d = document.createElement('span');
-                d.className = 'cross-dot ' + cls;
-                dots.appendChild(d);
-            }
-        });
-        g.appendChild(dots);
-        const cap = document.createElement('div');
-        cap.className = 'cross-cap';
-        cap.textContent = label;
-        g.appendChild(cap);
-        el.appendChild(g);
-    }
-
-    if (p.opSymbol === '+') {
-        const toTen = 10 - p.a, remainder = p.b - toTen;
-        group([['orig', p.a], ['add', toTen]], '10');          // a + (доповнення до 10)
-        if (remainder > 0) group([['add', remainder]], '+' + remainder); // leftover
-    } else {
-        const toTen = p.a - 10, remainder = p.b - toTen;        // answer = 10 − remainder
-        group([['orig', p.answer], ['remove', remainder]], '10');
-        if (toTen > 0) group([['remove', toTen]], '−' + toTen); // the part beyond ten, removed first
-    }
+    const p = state.crossingData;
+    if (!el || !p) return;
+    el.innerHTML = tensPictureHTML(p.a, p.b, p.opSymbol, Math.min(3, state.crossingStep - 1));
 }
 
 function renderCrossingSteps() {
     const eqEl = document.getElementById('crossing-equation');
     const p = state.crossingData;
-    const currentStep = state.crossingStep;
-
-    // Base structure: a op b =
-    let html = `<span class="crossing-num">${p.a}</span> <span class="crossing-op">${p.opSymbol}</span> <span class="crossing-num">${p.b}</span> <span class="crossing-eq">=</span> `;
-
-    // Step 1: the 10
-    if (currentStep > 1) {
-        html += `<span class="crossing-num-filled">${p.answers[0]}</span>`;
-    } else {
-        html += `<span class="crossing-num-active">?</span>`;
-    }
-
-    html += ` <span class="crossing-op">${p.crossOp}</span> `;
-
-    // Step 2: remainder
-    if (currentStep > 2) {
-        html += `<span class="crossing-num-filled">${p.answers[1]}</span>`;
-    } else if (currentStep === 2) {
-        html += `<span class="crossing-num-active">?</span>`;
-    } else {
-        html += `<span class="crossing-num-locked">?</span>`;
-    }
-
-    html += ` <span class="crossing-eq">=</span> `;
-
-    // Step 3: answer
-    if (currentStep > 3) {
-        html += `<span class="crossing-result filled">${p.answers[2]}</span>`;
-    } else if (currentStep === 3) {
-        html += `<span class="crossing-num-active">?</span>`;
-    } else {
-        html += `<span class="crossing-num-locked">?</span>`;
-    }
-
+    const cur = state.crossingStep;
+    const done = cur > 3;
+    let html = `<div class="cs-task"><span class="crossing-num">${p.a}</span> <span class="crossing-op">${p.opSymbol}</span> ` +
+        `<span class="crossing-num">${p.b}</span> <span class="crossing-eq">=</span> ` +
+        (done ? `<span class="crossing-result filled">${p.answer}</span>` : '<span class="crossing-num-locked">?</span>') + '</div>';
+    tensStepLines(p.a, p.b, p.opSymbol).forEach((ln, i) => {
+        const n = i + 1;
+        if (n > cur) { html += `<div class="cs-line locked"><span class="cs-n">${n}</span><span class="cs-expr">…</span></div>`; return; }
+        const box = n < cur ? `<span class="crossing-num-filled">${ln.ans}</span>` : '<span class="crossing-num-active">?</span>';
+        html += `<div class="cs-line${n === cur ? ' active' : ''}"><span class="cs-n">${n}</span>` +
+            `<span class="cs-expr">${ln.pre}${box}${ln.post}</span></div>`;
+        if (n === cur) html += `<div class="cs-tip">${ln.tip}</div>`;
+    });
     eqEl.innerHTML = html;
 }
 
 function crossingInput(digit) {
     if (state.answered) return;
     if (state.crossingInputValue.length >= 2) return;
-
     state.crossingInputValue += digit.toString();
     document.getElementById('crossing-input-display').textContent = state.crossingInputValue;
 }
@@ -1677,84 +1822,229 @@ function crossingSubmit() {
     const currentAns = p.answers[state.crossingStep - 1];
     const correct = userAnswer === currentAns;
     const inputDisplay = document.getElementById('crossing-input-display');
+    enableCrossingNumpad(false);
 
     if (correct) {
         inputDisplay.className = 'crossing-input-display correct-flash';
         inputDisplay.textContent = '✓ ' + userAnswer;
-        
         createStarBurst();
-        enableCrossingNumpad(false);
-
-        if (state.crossingStep >= 3) {
-            // All steps done — problem complete!
-            state.answered = true;
-            state.score++;
-            state.sessionCorrect++;
-            document.getElementById('score-value').textContent = state.score;
-
-            // Re-render final state
-            renderCrossingSteps();
-
-            const timeTaken = Date.now() - state.problemStartTime;
-            recordStat(state.crossingData && state.crossingData.factKey, true, timeTaken);
-            awardCorrect(timeTaken);
-
-            const feedback = document.getElementById('feedback');
-            const emojis = ['🎉', '⭐', '🌟', '💫', '✨', '🎊', '💖', '🦄', '🌈', '🎀'];
-            feedback.textContent = emojis[Math.floor(Math.random() * emojis.length)];
-            feedback.className = 'feedback show';
-
-            if (state.sessionCorrect % 3 === 0) launchConfetti();
-
-            setTimeout(nextProblem, CONFIG.pace.crossingDone);
-        } else {
-            // Move to next step
-            setTimeout(() => {
-                state.crossingStep++;
-                state.crossingInputValue = '';
-                renderCrossingSteps();
-                inputDisplay.textContent = '?';
-                inputDisplay.className = 'crossing-input-display';
-                enableCrossingNumpad(true);
-            }, 700);
-        }
     } else {
-        // Wrong answer for step
+        // Помилка в кроці: показуємо правильне число й ідемо далі — приклад уже не «чистий»
+        if (!state.crossingMiss) state.crossingMissStep = state.crossingStep;
+        state.crossingMiss = true;
         inputDisplay.className = 'crossing-input-display wrong-flash';
         inputDisplay.textContent = '✗ ' + userAnswer;
-        
         const eqEl = document.getElementById('crossing-equation');
         eqEl.classList.add('shake');
         setTimeout(() => eqEl.classList.remove('shake'), 500);
+        setTimeout(() => { inputDisplay.textContent = 'Правильно: ' + currentAns; }, 600);
+    }
 
-        // Show correct answer briefly, then let them continue
-        setTimeout(() => {
-            inputDisplay.textContent = 'Відповідь: ' + currentAns;
-        }, 600);
+    setTimeout(() => {
+        if (state.crossingStep >= 3) { finishCrossingProblem(); return; }
+        state.crossingStep++;
+        state.crossingInputValue = '';
+        renderCrossingVisual();
+        renderCrossingSteps();
+        inputDisplay.textContent = '?';
+        inputDisplay.className = 'crossing-input-display';
+        enableCrossingNumpad(true);
+    }, correct ? 700 : 1800);
+}
 
-        setTimeout(() => {
-            if (state.crossingStep >= 3) {
-                // Final step was wrong — still finish the problem
-                state.answered = true;
-                state.combo = 0;
-                recordStat(state.crossingData && state.crossingData.factKey, false, Date.now() - state.problemStartTime);
-                updateEconomyUI();
-                saveGame();
+// Приклад зараховується, лише якщо всі три кроки — з першої спроби
+function finishCrossingProblem() {
+    state.answered = true;
+    const p = state.crossingData;
+    const ok = !state.crossingMiss;
+    state.crossingStep = 4;
+    renderCrossingVisual();
+    renderCrossingSteps();
 
-                renderCrossingSteps();
+    const timeTaken = Date.now() - state.problemStartTime;
+    recordStat(p.factKey, ok, timeTaken);
+    if (hasResultsTable(state.mode)) {
+        state.sessionLog.push({ label: `${p.a} ${p.opSymbol} ${p.b} = ${p.answer}`, answer: p.answer,
+            user: p.answer, note: ok ? null : `помилка в кроці ${state.crossingMissStep}`, correct: ok, timeMs: timeTaken });
+    }
 
-                setTimeout(nextProblem, CONFIG.pace.wrong);
-            } else {
-                state.crossingStep++;
-                state.crossingInputValue = '';
-                renderCrossingSteps();
-                inputDisplay.textContent = '?';
-                inputDisplay.className = 'crossing-input-display';
-                enableCrossingNumpad(true);
+    const feedback = document.getElementById('feedback');
+    if (ok) {
+        state.score++;
+        state.sessionCorrect++;
+        document.getElementById('score-value').textContent = state.score;
+        awardCorrect(timeTaken);
+        const emojis = ['🎉', '⭐', '🌟', '💫', '✨', '🎊', '💖', '🦄', '🌈', '🎀'];
+        feedback.textContent = emojis[Math.floor(Math.random() * emojis.length)];
+        if (state.sessionCorrect % 3 === 0) launchConfetti();
+    } else {
+        state.combo = 0;
+        updateEconomyUI();
+        saveGame();
+        feedback.textContent = ['😅', '🤔', '💪'][Math.floor(Math.random() * 3)];
+    }
+    feedback.className = 'feedback show';
+    setTimeout(nextProblem, ok ? CONFIG.pace.crossingDone : CONFIG.pace.wrong);
+}
+
+// ===== 📖 УРОК «ЧЕРЕЗ ДЕСЯТОК» =====
+// Слайди з картинками; у прикладах дитина сама відповідає на 3 кроки (вибір із 3 кнопок),
+// картинка після кожного кроку змінюється. Без монет — це пояснення, а не гра.
+function lessonExample(a, b, op, title) {
+    const t = tensSplit(a, b, op);
+    const tens = Math.floor(a / 10), u = a % 10;
+    const big = a >= 20;
+    const say = op === '+'
+        ? [
+            big ? `${a} — це ${tens * 10} і ще ${u}. До круглого числа ${t.round} бракує кількох.`
+                : `У рамці ${u}. Щоб рамка стала повною (10), бракує кількох кружечків.`,
+            `Беремо ${t.first} з ${b} і доповнюємо рамку — маємо ${t.round}. А скільки лишилось від ${b}?`,
+            `Тепер легко: ${t.round} і ще ${t.rest}.`,
+            `${a} + ${b} = ${t.answer} 🎉`,
+        ]
+        : [
+            `${a} — це ${t.round} і ще ${u}. Спочатку забираємо ці ${u}, щоб лишилось рівно ${t.round}.`,
+            `Забрали ${t.first}, а треба забрати ${b}. Скільки ще треба забрати?`,
+            `Тепер від ${t.round} забираємо ще ${t.rest}.`,
+            `${a} − ${b} = ${t.answer} 🎉`,
+        ];
+    return {
+        title: title || `${a} ${op} ${b} = ?`,
+        pic: stage => tensPictureHTML(a, b, op, stage),
+        say,
+        asks: tensStepLines(a, b, op).map(l => ({ q: l.q, answer: l.ans, tip: l.tip })),
+    };
+}
+
+const TENS_LESSON_CHAPTERS = ['➕ Додавання', '➖ Віднімання', '🚀 Великі числа'];
+
+const TENS_LESSON = [
+    { ch: 0, title: 'Десяток — це 10',
+      pic: () => tenFrameHTML(tfCells([['orig', 10]]), '10'),
+      text: 'Ось рамка на 10 клітинок. Коли вона повна — це <b>десяток</b>. З десятком рахувати найлегше: <b>10 + 3 = 13</b>, <b>10 + 6 = 16</b>, <b>10 − 2 = 8</b>.' },
+    { ch: 0, title: 'Друзі числа 10',
+      pic: () => [[9, 1], [8, 2], [7, 3], [6, 4], [5, 5]].map(([x, y]) => tenFrameHTML(tfCells([['orig', x], ['add', y]]), `${x} + ${y}`)).join(''),
+      text: 'Ці пари разом дають 10. Це головний секрет — знай їх напам\'ять!',
+      asks: [{ q: '7 + ? = 10', answer: 3 }, { q: '4 + ? = 10', answer: 6 }] },
+    { ch: 0, title: 'Число — це дві частинки',
+      pic: () => tenFrameHTML(tfCells([['orig', 2], ['add', 3]]), '5 = 2 + 3') + tenFrameHTML(tfCells([['orig', 4], ['add', 3]]), '7 = 4 + 3'),
+      text: 'Будь-яке число можна розкласти на дві частинки: 5 — це 2 і 3, а 7 — це 4 і 3. Це теж знадобиться!',
+      asks: [{ q: '6 = 4 + ?', answer: 2 }, { q: '8 = 5 + ?', answer: 3 }] },
+    { ch: 0, ...lessonExample(8, 5, '+', 'Рахуємо 8 + 5') },
+    { ch: 0, title: 'Запам\'ятай: 3 кроки', rule: '+' },
+    { ch: 0, ...lessonExample(7, 6, '+', 'Тепер ти: 7 + 6') },
+    { ch: 0, ...lessonExample(9, 4, '+', 'І ще: 9 + 4') },
+
+    { ch: 1, title: 'Віднімаємо теж через 10',
+      pic: () => tenFrameHTML(tfCells([['orig', 10]]), '10') + tenFrameHTML(tfCells([['orig', 3]]), '3'),
+      text: '<b>13</b> — це повний десяток і ще 3. Коли треба забрати багато, спершу забираємо ці 3 — і лишається рівно 10. А від 10 відняти легко!' },
+    { ch: 1, ...lessonExample(13, 5, '−', 'Рахуємо 13 − 5') },
+    { ch: 1, title: 'Запам\'ятай: 3 кроки', rule: '−' },
+    { ch: 1, ...lessonExample(12, 8, '−', 'Тепер ти: 12 − 8') },
+    { ch: 1, ...lessonExample(13, 9, '−', 'І ще: 13 − 9') },
+    { ch: 1, ...lessonExample(11, 7, '−', 'І ще: 11 − 7') },
+
+    { ch: 2, title: 'Великі числа — так само',
+      pic: () => tenRodsHTML(2) + tenFrameHTML(tfCells([['orig', 7]]), '7'),
+      text: '<b>27</b> — це 2 десятки і ще 7. Рахуємо так само, тільки доповнюємо не до 10, а до круглого числа: <b>20, 30, 40…</b>' },
+    { ch: 2, ...lessonExample(27, 5, '+', 'Рахуємо 27 + 5') },
+    { ch: 2, ...lessonExample(34, 8, '−', 'Рахуємо 34 − 8') },
+    { ch: 2, ...lessonExample(46, 7, '+', 'Тепер ти: 46 + 7') },
+    { ch: 2, ...lessonExample(52, 6, '−', 'І ще: 52 − 6') },
+    { ch: 2, title: 'Шпаргалка', rule: 'all', last: true },
+];
+
+let lessonIdx = 0;
+let lessonStage = 0;
+
+function openTensLesson(i) {
+    lessonIdx = i || 0;
+    lessonStage = 0;
+    renderLesson();
+    showScreen('screen-tens-lesson');
+}
+
+function lessonGo(i) {
+    lessonIdx = Math.max(0, Math.min(TENS_LESSON.length - 1, i));
+    lessonStage = 0;
+    renderLesson();
+    window.scrollTo(0, 0);
+}
+
+function lessonChapter(ch) { lessonGo(TENS_LESSON.findIndex(s => s.ch === ch)); }
+
+function lessonRuleHTML(op) {
+    const add = `<div class="lr-card lr-add"><div class="lr-title">➕ 8 + 5</div>
+        <div class="lr-step"><span>1</span>Доповни до 10: <b>8 + 2 = 10</b></div>
+        <div class="lr-step"><span>2</span>Розклади друге число: <b>5 = 2 + 3</b></div>
+        <div class="lr-step"><span>3</span>Додай решту: <b>10 + 3 = 13</b></div></div>`;
+    const sub = `<div class="lr-card lr-sub"><div class="lr-title">➖ 13 − 5</div>
+        <div class="lr-step"><span>1</span>Забери до 10: <b>13 − 3 = 10</b></div>
+        <div class="lr-step"><span>2</span>Розклади те, що віднімаєш: <b>5 = 3 + 2</b></div>
+        <div class="lr-step"><span>3</span>Забери решту: <b>10 − 2 = 8</b></div></div>`;
+    const big = `<div class="lr-card lr-big"><div class="lr-title">🚀 Великі числа</div>
+        <div class="lr-step"><span>✓</span><b>27 + 5</b> = 27 + 3 + 2 = <b>32</b></div>
+        <div class="lr-step"><span>✓</span><b>34 − 8</b> = 34 − 4 − 4 = <b>26</b></div></div>`;
+    const friends = `<div class="lr-card lr-friends"><div class="lr-title">🤝 Друзі числа 10</div>
+        <div class="lr-pairs">1 + 9 · 2 + 8 · 3 + 7 · 4 + 6 · 5 + 5</div></div>`;
+    if (op === '+') return add + friends;
+    if (op === '−') return sub + friends;
+    return friends + add + sub + big;
+}
+
+function renderLesson() {
+    const s = TENS_LESSON[lessonIdx];
+    const asks = s.asks || [];
+    const allDone = lessonStage >= asks.length;
+
+    document.getElementById('lesson-chapters').innerHTML = TENS_LESSON_CHAPTERS.map((c, i) =>
+        `<button class="lesson-chip${s.ch === i ? ' active' : ''}" onclick="lessonChapter(${i})">${c}</button>`).join('');
+    document.getElementById('lesson-progress').textContent = `${lessonIdx + 1} / ${TENS_LESSON.length}`;
+
+    let html = `<h3 class="lesson-title">${s.title}</h3>`;
+    if (s.rule) {
+        html += `<div class="lesson-rules">${lessonRuleHTML(s.rule)}</div>`;
+    } else {
+        if (s.pic) html += `<div class="lesson-pic">${s.pic(lessonStage)}</div>`;
+        const text = s.say ? s.say[Math.min(lessonStage, s.say.length - 1)] : s.text;
+        if (text) html += `<p class="lesson-text">${text}</p>`;
+        // Уже розв'язані кроки — зеленим, поточний — питання з трьома кнопками
+        asks.forEach((a, i) => {
+            if (i < lessonStage) {
+                html += `<div class="lesson-ask done">${a.q.replace('?', `<b>${a.answer}</b>`)} ✓</div>`;
+            } else if (i === lessonStage) {
+                const opts = shuffleArray([a.answer, a.answer + 1, Math.max(0, a.answer - 1) === a.answer ? a.answer + 2 : a.answer - 1]
+                    .filter((v, k, arr) => arr.indexOf(v) === k));
+                while (opts.length < 3) opts.push(a.answer + opts.length + 1);
+                html += `<div class="lesson-ask current"><div class="lesson-q">${a.q}</div>` +
+                    (a.tip ? `<div class="lesson-tip">${a.tip}</div>` : '') +
+                    `<div class="lesson-opts">${opts.map(v => `<button class="lesson-opt" onclick="lessonPick(this, ${v})">${v}</button>`).join('')}</div>` +
+                    `<div class="lesson-oops" id="lesson-oops"></div></div>`;
             }
-        }, 1400);
+        });
+    }
+    document.getElementById('lesson-card').innerHTML = html;
 
-        enableCrossingNumpad(false);
+    document.getElementById('lesson-prev').disabled = lessonIdx === 0;
+    const next = document.getElementById('lesson-next');
+    next.disabled = !allDone;
+    next.style.display = s.last ? 'none' : '';
+    document.getElementById('lesson-train').style.display = s.last ? '' : 'none';
+}
+
+function lessonPick(btn, value) {
+    const s = TENS_LESSON[lessonIdx];
+    const ask = (s.asks || [])[lessonStage];
+    if (!ask) return;
+    if (value === ask.answer) {
+        createStarBurst();
+        lessonStage++;
+        renderLesson();
+    } else {
+        btn.classList.add('wrong');
+        btn.disabled = true;
+        const oops = document.getElementById('lesson-oops');
+        if (oops) oops.textContent = 'Майже! Подивись на рамку і спробуй ще 🙂';
     }
 }
 
@@ -1797,6 +2087,21 @@ function awardCorrect(timeTaken) {
             }
         } else {
             state.daily.multLimits.easy = used + 1;
+        }
+    }
+
+    // «Друзі числа 10» — легкий рівень: оплачується лише bondsDailyAnswers відповідей на день
+    if (state.mode === 'tens' && state.tensLevel === 'bonds') {
+        if (!state.daily.multLimits) state.daily.multLimits = {};
+        const used = state.daily.multLimits.bonds || 0;
+        if (used >= CONFIG.bondsDailyAnswers) {
+            earned = 0;
+            if (used === CONFIG.bondsDailyAnswers) {
+                showNotification('Друзі числа 10 — вже легко 🙂', 'Монети за цей рівень на сьогодні все. Далі — «Сам» або «Великі числа»!', '💡');
+                state.daily.multLimits.bonds = used + 1; // повідомлення — один раз
+            }
+        } else {
+            state.daily.multLimits.bonds = used + 1;
         }
     }
 
@@ -1866,7 +2171,7 @@ function handleResult(correct, userAnswer, btnElement) {
     // Per-question log for the end-of-session results table (+/- family)
     if (hasResultsTable(state.mode)) {
         const p = state.currentProblem;
-        const label = `${p.a} ${p.opSymbol} ${p.b} = ${p.answer}`;
+        const label = p.label || `${p.a} ${p.opSymbol} ${p.b} = ${p.answer}`;
         state.sessionLog.push({ label, answer: p.answer, user: userAnswer, correct, timeMs: timeTaken });
     }
 
@@ -1923,7 +2228,10 @@ function handleResult(correct, userAnswer, btnElement) {
         // Teaching moment: show the "make ten" method for a missed +/- fact.
         // The hint stays until the child closes it (×) — no auto-advance while it's up.
         let hintPaused = false;
-        if (['addition', 'subtraction', 'plusminus', 'goatexam'].includes(state.mode)) {
+        if (state.mode === 'tens') {
+            showTensHint(state.currentProblem);
+            hintPaused = true;
+        } else if (['addition', 'subtraction', 'plusminus', 'goatexam'].includes(state.mode)) {
             const p = state.currentProblem;
             const h = state.mode === 'goatexam'
                 ? springHint(p.a, p.b, p.opSymbol, p.answer)
@@ -1957,6 +2265,8 @@ function handleResult(correct, userAnswer, btnElement) {
 // Close the make-ten hint and move on to the next problem
 function dismissHint() {
     document.getElementById('hint').classList.remove('show');
+    const hv = document.getElementById('hint-visual');
+    if (hv) { hv.innerHTML = ''; hv.style.display = 'none'; }
     nextProblem();
 }
 
@@ -2102,7 +2412,7 @@ function showCompletion() {
             let rows = '';
             tableLog.forEach(r => {
                 const sec = (r.timeMs / 1000).toFixed(1);
-                const you = r.correct ? '' : ` <span class="rt-you">ти: ${r.user}</span>`;
+                const you = r.correct ? '' : ` <span class="rt-you">${r.note || 'ти: ' + r.user}</span>`;
                 rows += `<tr class="${r.correct ? 'rt-ok' : 'rt-bad'}">
                     <td class="rt-ex">${r.label}${you}</td>
                     <td class="rt-sec">${sec}s</td>
@@ -2121,7 +2431,7 @@ function showCompletion() {
     const perfect = total > 0 && correct === total; // жодної помилки за всю сесію
     if (perfect) {
         // Завдання дня закриває лише ідеальний рівень ПОТРІБНОГО режиму
-        if (state.mode === dailyTaskMode()) {
+        if (isDailyTaskSession()) {
             completeDailyTask();
         } else if (!isExam && state.mode !== 'blitz') {
             // Ідеально, але не той режим — підкажемо, де чекає медаль

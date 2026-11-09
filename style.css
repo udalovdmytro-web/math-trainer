@@ -2527,3 +2527,409 @@ body {
     border-color: var(--sky-dark);
     color: var(--text-on-bg);
 }
+
+/* ===== 🔟 ЧЕРЕЗ ДЕСЯТОК: картка в меню, рамки, «Крок за кроком», урок ===== */
+.mode-tens {
+    background: linear-gradient(135deg, #FFF0DC, #FFD8A8);
+    border-color: #FFB25C;
+    box-shadow: 0 4px 14px rgba(255, 178, 92, 0.5);
+}
+
+.mode-new {
+    position: absolute;
+    top: 8px;
+    right: 10px;
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: #FF4D6D;
+    color: #fff;
+    font-size: 0.72rem;
+    font-weight: 900;
+    letter-spacing: 0.04em;
+}
+
+/* Урок у підменю — на всю ширину, щоб починали з нього */
+.difficulty-card.wide {
+    grid-column: 1 / -1;
+    background: linear-gradient(135deg, #FFFBEA, var(--gold-light));
+    border-color: var(--gold);
+}
+
+/* Десяткова рамка: 2 ряди по 5 клітинок */
+.tf-group {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+}
+
+.tf {
+    display: grid;
+    grid-template-columns: repeat(5, 18px);
+    gap: 4px;
+    padding: 6px;
+    background: #fff;
+    border: 2px solid #C9CDE8;
+    border-radius: 10px;
+}
+
+.tf-cell {
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    border: 2px dashed #D3D6EA;
+    box-sizing: border-box;
+    position: relative;
+}
+
+.tf-cell.orig { background: #2FB487; border: none; }
+.tf-cell.add  { background: #FF9A3C; border: none; }
+.tf-cell.take {
+    background: #FFE4E8;
+    border: 2px solid #FF6B81;
+}
+.tf-cell.take::after {
+    content: '✕';
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    font-weight: 900;
+    color: #E8364F;
+}
+
+.tf-cap {
+    font-weight: 900;
+    font-size: 0.95rem;
+    color: var(--text);
+    white-space: nowrap;
+}
+
+/* Повні десятки — «палички» з 10 поділок */
+.tf-rods {
+    display: flex;
+    gap: 4px;
+    height: 48px;
+    align-items: stretch;
+}
+
+.tf-rod {
+    width: 11px;
+    border-radius: 4px;
+    background: repeating-linear-gradient(180deg, #2FB487 0 3.8px, #fff 3.8px 4.8px);
+    border: 1px solid #23936E;
+}
+
+/* Картинка в «Крок за кроком» — на білій картці (а не на нічному фоні) */
+.crossing-visual {
+    background: rgba(255, 255, 255, 0.96);
+    border-radius: var(--radius);
+    padding: 10px;
+    gap: 10px;
+    margin-bottom: 0;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.crossing-equation {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 6px;
+    font-size: 1.6rem;
+}
+
+.cs-task {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 8px;
+    font-size: 2.1rem;
+    margin-bottom: 4px;
+}
+
+.cs-line {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 4px 8px;
+    border-radius: 12px;
+}
+
+.cs-line.active { background: rgba(132, 201, 245, 0.15); }
+.cs-line.locked { opacity: 0.4; }
+
+.cs-n {
+    flex-shrink: 0;
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    background: var(--lavender);
+    color: var(--text);
+    font-size: 1rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.cs-expr {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px;
+    white-space: pre;
+}
+
+.cs-expr .crossing-num-active,
+.cs-expr .crossing-num-filled {
+    padding: 0 10px;
+    min-width: 40px;
+}
+
+.cs-tip {
+    font-size: 1rem;
+    font-weight: 800;
+    color: var(--sky-dark);
+    text-align: left;
+    padding-left: 48px;
+    margin-top: -4px;
+}
+
+/* Пояснення з картинкою після помилки */
+.hint { flex-wrap: wrap; }
+
+.hint-visual {
+    flex-basis: 100%;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 8px;
+    padding: 8px;
+    background: #fff;
+    border-radius: 12px;
+}
+
+/* ----- Урок ----- */
+.lesson-chapters {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    justify-content: center;
+    margin-bottom: 12px;
+}
+
+.lesson-chip {
+    border: 2px solid rgba(255, 255, 255, 0.5);
+    background: rgba(255, 255, 255, 0.12);
+    color: var(--text-on-bg);
+    padding: 6px 12px;
+    border-radius: 999px;
+    font-family: inherit;
+    font-weight: 800;
+    font-size: 0.9rem;
+    cursor: pointer;
+}
+
+.lesson-chip.active {
+    background: var(--gold);
+    border-color: var(--gold);
+    color: #4A3500;
+}
+
+.lesson-card {
+    width: 100%;
+    max-width: 460px;
+    box-sizing: border-box;
+    background: var(--white);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-lg);
+    padding: 18px 16px;
+    color: var(--text);
+    text-align: center;
+}
+
+.lesson-title {
+    margin: 0 0 12px;
+    font-size: 1.45rem;
+    font-weight: 900;
+    color: var(--text);
+}
+
+.lesson-pic {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 10px;
+    padding: 10px;
+    background: #F6F7FF;
+    border-radius: 16px;
+}
+
+.lesson-pic .tf { grid-template-columns: repeat(5, 22px); }
+.lesson-pic .tf-cell { width: 22px; height: 22px; }
+.lesson-pic .tf-rods { height: 58px; }
+.lesson-pic .tf-rod { background: repeating-linear-gradient(180deg, #2FB487 0 4.7px, #fff 4.7px 5.8px); }
+
+.lesson-text {
+    font-size: 1.1rem;
+    font-weight: 700;
+    line-height: 1.45;
+    margin: 14px 4px 6px;
+}
+
+.lesson-ask {
+    margin-top: 10px;
+    border-radius: 16px;
+    font-weight: 900;
+}
+
+.lesson-ask.done {
+    padding: 6px 10px;
+    background: var(--correct-bg);
+    color: #1F8A66;
+    font-size: 1.25rem;
+}
+
+.lesson-ask.current {
+    padding: 12px 10px;
+    background: #EEF6FF;
+    border: 3px dashed var(--sky-dark);
+}
+
+.lesson-q { font-size: 1.8rem; }
+
+.lesson-tip {
+    font-size: 1rem;
+    color: #3A8BC8;
+    margin-top: 2px;
+}
+
+.lesson-opts {
+    display: flex;
+    gap: 12px;
+    justify-content: center;
+    margin-top: 10px;
+}
+
+.lesson-opt {
+    min-width: 72px;
+    padding: 12px 0;
+    border: 3px solid var(--lavender-dark);
+    border-radius: 16px;
+    background: #fff;
+    color: var(--text);
+    font-family: inherit;
+    font-size: 1.7rem;
+    font-weight: 900;
+    cursor: pointer;
+}
+
+.lesson-opt:active { transform: scale(0.95); }
+
+.lesson-opt.wrong {
+    border-color: var(--wrong);
+    background: var(--wrong-bg);
+    opacity: 0.55;
+}
+
+.lesson-oops {
+    min-height: 1.3em;
+    margin-top: 6px;
+    font-size: 0.95rem;
+    color: #E8364F;
+}
+
+.lesson-nav {
+    width: 100%;
+    max-width: 460px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin-top: 14px;
+}
+
+.lesson-progress {
+    color: var(--text-on-bg);
+    font-weight: 800;
+}
+
+.lesson-nav-btn {
+    padding: 12px 18px;
+    border: none;
+    border-radius: 16px;
+    background: rgba(255, 255, 255, 0.92);
+    color: var(--text);
+    font-family: inherit;
+    font-size: 1.05rem;
+    font-weight: 900;
+    cursor: pointer;
+}
+
+.lesson-nav-btn.primary {
+    background: var(--gold);
+    color: #4A3500;
+}
+
+.lesson-nav-btn:disabled {
+    opacity: 0.4;
+    cursor: default;
+}
+
+.lesson-rules {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    text-align: left;
+}
+
+.lr-card {
+    padding: 10px 12px;
+    border-radius: 16px;
+    border: 2px solid transparent;
+}
+
+.lr-add     { background: #FFF2E3; border-color: #FFB25C; }
+.lr-sub     { background: #EAF4FF; border-color: var(--sky-dark); }
+.lr-big     { background: #F3ECFF; border-color: var(--lavender-dark); }
+.lr-friends { background: var(--correct-bg); border-color: var(--correct); }
+
+.lr-title {
+    font-weight: 900;
+    font-size: 1.15rem;
+    margin-bottom: 4px;
+}
+
+.lr-step {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 700;
+    font-size: 1rem;
+    margin: 4px 0;
+}
+
+.lr-step span {
+    flex-shrink: 0;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: #fff;
+    border: 2px solid currentColor;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.85rem;
+    font-weight: 900;
+}
+
+.lr-pairs {
+    font-size: 1.15rem;
+    font-weight: 900;
+}
+
+.difficulty-card.wide .diff-reward {
+    background: var(--gold);
+    color: #4A3500;
+}
